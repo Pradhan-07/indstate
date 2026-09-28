@@ -7,7 +7,7 @@ import { useProperty } from './PropertyContext';
 const ChatbotContext = createContext();
 
 const STORAGE_CHAT_KEY = 'indstate_chatbot_messages_v2';
-const STORAGE_KB_KEY = 'indstate_rag_kb_v2';
+const STORAGE_KB_KEY = 'indstate_rag_kb_v3';
 const STORAGE_LEADS_KEY = 'indstate_collected_leads_v2';
 const STORAGE_UNANSWERED_KEY = 'indstate_unanswered_queries_v2';
 const STORAGE_FEEDBACK_KEY = 'indstate_chatbot_feedback_v2';
@@ -44,7 +44,9 @@ export function ChatbotProvider({ children }) {
       const saved = localStorage.getItem(STORAGE_KB_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        return parsed.map(item => ({ ...item, _vector: buildEntryVector(item) }));
+        if (Array.isArray(parsed) && parsed.length >= INITIAL_RAG_KNOWLEDGE_BASE.length) {
+          return parsed.map(item => ({ ...item, _vector: buildEntryVector(item) }));
+        }
       }
     } catch (e) {
       console.error("Error loading KB from localStorage", e);

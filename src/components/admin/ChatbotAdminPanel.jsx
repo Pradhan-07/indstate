@@ -3,7 +3,7 @@ import {
   Bot, BookOpen, HelpCircle, ThumbsUp, ThumbsDown, 
   Plus, Edit3, Trash2, CheckCircle, Search, Filter, 
   Phone, MessageSquare, ArrowUpRight, X, Sparkles, 
-  Clock, AlertCircle, RefreshCw, Send, Check
+  Clock, AlertCircle, RefreshCw, Send, Check, Download, FileSpreadsheet
 } from 'lucide-react';
 import { useChatbot } from '../../context/ChatbotContext';
 import { KNOWLEDGE_BASE_CATEGORIES } from '../../data/ragKnowledgeBase';
@@ -24,7 +24,10 @@ export default function ChatbotAdminPanel() {
 
   const [activeSubTab, setActiveSubTab] = useState('kb'); // 'kb' | 'unanswered' | 'leads' | 'feedback'
   const [kbCategoryFilter, setKbCategoryFilter] = useState('All');
+  const [kbFlagFilter, setKbFlagFilter] = useState('All');
   const [kbSearchTerm, setKbSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,7 +39,8 @@ export default function ChatbotAdminPanel() {
     answerEn: '',
     answerHi: '',
     keywords: '',
-    tags: ''
+    tags: '',
+    flags: []
   });
   const [sourceUnansweredId, setSourceUnansweredId] = useState(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -50,15 +54,60 @@ export default function ChatbotAdminPanel() {
   // Filter KB Items
   const filteredKB = (knowledgeBase || []).filter(item => {
     const matchesCategory = kbCategoryFilter === 'All' || item.category === kbCategoryFilter;
+    const matchesFlag = kbFlagFilter === 'All' || 
+      (kbFlagFilter === 'none' ? (!item.flags || item.flags.length === 0) : (item.flags && item.flags.includes(kbFlagFilter)));
     const term = kbSearchTerm.toLowerCase();
     const matchesSearch = !term ||
+      (item.id && item.id.toLowerCase().includes(term)) ||
+      (item.num && String(item.num).includes(term)) ||
       (item.questionEn && item.questionEn.toLowerCase().includes(term)) ||
       (item.questionHi && item.questionHi.toLowerCase().includes(term)) ||
       (item.answerEn && item.answerEn.toLowerCase().includes(term)) ||
       (item.answerHi && item.answerHi.toLowerCase().includes(term)) ||
       (item.keywords && item.keywords.some(k => k.toLowerCase().includes(term)));
-    return matchesCategory && matchesSearch;
+    return matchesCategory && matchesFlag && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredKB.length / itemsPerPage) || 1;
+  const paginatedKB = filteredKB.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  // Handle Export to JSON
+  const handleExportJSON = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(knowledgeBase, null, 2));
+    const downloadAnchor = document.createElement('a');
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", "indstate_chatbot_kb_200.json");
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+    showNotification('Exported Knowledge Base (200 Q&A items) as JSON!');
+  };
+
+  // Handle Export to CSV
+  const handleExportCSV = () => {
+    const headers = ['ID', 'Number', 'Category', 'Flags', 'Question_EN', 'Question_Hinglish', 'Answer_Hinglish', 'Answer_EN', 'Tags', 'Keywords'];
+    const rows = (knowledgeBase || []).map(item => [
+      item.id,
+      item.num || '',
+      `"${(item.category || '').replace(/"/g, '""')}"`,
+      `"${(item.flags || []).join(', ')}"`,
+      `"${(item.questionEn || '').replace(/"/g, '""')}"`,
+      `"${(item.questionHi || '').replace(/"/g, '""')}"`,
+      `"${(item.answerHi || '').replace(/"/g, '""')}"`,
+      `"${(item.answerEn || '').replace(/"/g, '""')}"`,
+      `"${(item.tags || []).join(', ')}"`,
+      `"${(item.keywords || []).join(', ')}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", "indstate_chatbot_kb_200.csv");
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showNotification('Exported Knowledge Base (200 Q&A items) as CSV!');
+  };
 
   const showNotification = (msg) => {
     setActionSuccessMsg(msg);
@@ -76,7 +125,8 @@ export default function ChatbotAdminPanel() {
         answerEn: '',
         answerHi: '',
         keywords: prefillData.query.split(' ').slice(0, 4).join(', '),
-        tags: 'faq, user-query'
+        tags: 'faq, user-query',
+        flags: []
       });
     } else {
       setEditingItem(null);
@@ -88,7 +138,8 @@ export default function ChatbotAdminPanel() {
         answerEn: '',
         answerHi: '',
         keywords: '',
-        tags: ''
+        tags: '',
+        flags: []
       });
     }
     setIsModalOpen(true);
@@ -104,7 +155,8 @@ export default function ChatbotAdminPanel() {
       answerEn: item.answerEn || '',
       answerHi: item.answerHi || '',
       keywords: Array.isArray(item.keywords) ? item.keywords.join(', ') : '',
-      tags: Array.isArray(item.tags) ? item.tags.join(', ') : ''
+      tags: Array.isArray(item.tags) ? item.tags.join(', ') : '',
+      flags: item.flags || []
     });
     setIsModalOpen(true);
   };
@@ -132,6 +184,7 @@ export default function ChatbotAdminPanel() {
 
     const payload = {
       category: modalFormData.category,
+      flags: modalFormData.flags || [],
       questionEn: modalFormData.questionEn || modalFormData.questionHi,
       questionHi: modalFormData.questionHi || modalFormData.questionEn,
       answerEn: modalFormData.answerEn || modalFormData.answerHi,
@@ -353,14 +406,14 @@ export default function ChatbotAdminPanel() {
         <div>
           {/* Controls Bar */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: '1 1 320px' }}>
-              <div style={{ position: 'relative', width: '100%', maxWidth: '340px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', flex: '1 1 400px' }}>
+              <div style={{ position: 'relative', width: '100%', maxWidth: '280px' }}>
                 <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input 
                   type="text"
-                  placeholder="Search questions, keywords, answers..."
+                  placeholder="Search 200 doubts by Q#, keyword..."
                   value={kbSearchTerm}
-                  onChange={(e) => setKbSearchTerm(e.target.value)}
+                  onChange={(e) => { setKbSearchTerm(e.target.value); setCurrentPage(1); }}
                   style={{
                     width: '100%',
                     padding: '9px 12px 9px 34px',
@@ -372,9 +425,10 @@ export default function ChatbotAdminPanel() {
                 />
               </div>
 
+              {/* Category Filter */}
               <select
                 value={kbCategoryFilter}
-                onChange={(e) => setKbCategoryFilter(e.target.value)}
+                onChange={(e) => { setKbCategoryFilter(e.target.value); setCurrentPage(1); }}
                 style={{
                   padding: '9px 12px',
                   borderRadius: '8px',
@@ -391,33 +445,111 @@ export default function ChatbotAdminPanel() {
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
+
+              {/* Flag Filter */}
+              <select
+                value={kbFlagFilter}
+                onChange={(e) => { setKbFlagFilter(e.target.value); setCurrentPage(1); }}
+                style={{
+                  padding: '9px 12px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '13px',
+                  background: '#FFFFFF',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="All">All Flags</option>
+                <option value="L">⚖️ (L) Legal</option>
+                <option value="T">📊 (T) Tax</option>
+                <option value="F">💰 (F) Finance</option>
+                <option value="P">🏢 (P) Platform</option>
+                <option value="none">No Flag</option>
+              </select>
             </div>
 
-            <button
-              onClick={() => handleOpenAddModal()}
-              className="btn btn-primary btn-sm"
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '9px 16px' }}
-            >
-              <Plus size={16} />
-              <span>Add New Q&A</span>
-            </button>
+            {/* Actions: Export JSON, Export CSV, Add Q&A */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+              <button
+                onClick={handleExportJSON}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: '#FFFFFF',
+                  color: 'var(--primary)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                title="Download 200 Q&A items as JSON file"
+              >
+                <Download size={14} />
+                <span>Export JSON</span>
+              </button>
+
+              <button
+                onClick={handleExportCSV}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: '#FFFFFF',
+                  color: 'var(--rera-green)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+                title="Download 200 Q&A items as CSV spreadsheet"
+              >
+                <FileSpreadsheet size={14} />
+                <span>Export CSV</span>
+              </button>
+
+              <button
+                onClick={() => handleOpenAddModal()}
+                className="btn btn-primary btn-sm"
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px' }}
+              >
+                <Plus size={16} />
+                <span>Add Q&A</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Q&A List Header & Count */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', fontSize: '13px', color: 'var(--text-muted)' }}>
+            <span>
+              Showing <strong>{filteredKB.length > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0}</strong> - <strong>{Math.min(currentPage * itemsPerPage, filteredKB.length)}</strong> of <strong>{filteredKB.length}</strong> matching questions (Total 200 in Knowledge Base)
+            </span>
+            {totalPages > 1 && (
+              <span>Page {currentPage} of {totalPages}</span>
+            )}
           </div>
 
           {/* Q&A List */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {filteredKB.length === 0 ? (
+            {paginatedKB.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px', background: 'var(--bg-page)', borderRadius: '12px', color: 'var(--text-muted)' }}>
                 <BookOpen size={36} style={{ margin: '0 auto 12px auto', opacity: 0.5 }} />
                 <p style={{ fontSize: '14px', fontWeight: 600 }}>No Q&A items matched your search criteria.</p>
                 <button 
-                  onClick={() => { setKbSearchTerm(''); setKbCategoryFilter('All'); }}
+                  onClick={() => { setKbSearchTerm(''); setKbCategoryFilter('All'); setKbFlagFilter('All'); setCurrentPage(1); }}
                   style={{ marginTop: '10px', fontSize: '13px', color: 'var(--primary)', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
                   Clear filters
                 </button>
               </div>
             ) : (
-              filteredKB.map((item) => (
+              paginatedKB.map((item) => (
                 <div 
                   key={item.id}
                   style={{
@@ -433,7 +565,12 @@ export default function ChatbotAdminPanel() {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '12px' }}>
                     <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
+                        {item.num && (
+                          <span style={{ fontSize: '11px', fontWeight: 800, padding: '3px 7px', borderRadius: '4px', background: '#0F172A', color: '#FFFFFF' }}>
+                            #{item.num}
+                          </span>
+                        )}
                         <span 
                           style={{
                             fontSize: '11px',
@@ -446,6 +583,29 @@ export default function ChatbotAdminPanel() {
                         >
                           {item.category}
                         </span>
+                        
+                        {/* Flags Badges */}
+                        {item.flags && item.flags.includes('L') && (
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#FEE2E2', color: '#B91C1C' }} title="Legal (L) - Confirm with a lawyer">
+                            ⚖️ Legal (L)
+                          </span>
+                        )}
+                        {item.flags && item.flags.includes('T') && (
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#FEF3C7', color: '#B45309' }} title="Tax (T) - Confirm with a CA">
+                            📊 Tax (T)
+                          </span>
+                        )}
+                        {item.flags && item.flags.includes('F') && (
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#DBEAFE', color: '#1D4ED8' }} title="Finance (F) - Confirm with bank">
+                            💰 Finance (F)
+                          </span>
+                        )}
+                        {item.flags && item.flags.includes('P') && (
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '3px 8px', borderRadius: '4px', background: '#DCFCE7', color: '#15803D' }} title="Platform (P) - INDSTATE verification">
+                            🏢 Platform (P)
+                          </span>
+                        )}
+
                         <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>ID: {item.id}</span>
                       </div>
                       <h4 style={{ fontSize: '15px', color: 'var(--primary)', fontWeight: 700, margin: '0 0 4px 0' }}>
@@ -539,6 +699,72 @@ export default function ChatbotAdminPanel() {
               ))
             )}
           </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', marginTop: '24px' }}>
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: currentPage === 1 ? '#F1F5F9' : '#FFFFFF',
+                  color: currentPage === 1 ? '#94A3B8' : 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: currentPage === 1 ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Previous
+              </button>
+
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .map((page, idx, arr) => {
+                  const prevPage = arr[idx - 1];
+                  const hasGap = prevPage && page - prevPage > 1;
+                  return (
+                    <React.Fragment key={page}>
+                      {hasGap && <span style={{ color: 'var(--text-muted)', padding: '0 4px' }}>...</span>}
+                      <button
+                        onClick={() => setCurrentPage(page)}
+                        style={{
+                          padding: '7px 12px',
+                          borderRadius: '6px',
+                          border: currentPage === page ? '1px solid var(--primary)' : '1px solid var(--border-color)',
+                          background: currentPage === page ? 'var(--primary)' : '#FFFFFF',
+                          color: currentPage === page ? '#FFFFFF' : 'var(--text-primary)',
+                          fontSize: '13px',
+                          fontWeight: currentPage === page ? 700 : 500,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {page}
+                      </button>
+                    </React.Fragment>
+                  );
+                })}
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                style={{
+                  padding: '7px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  background: currentPage === totalPages ? '#F1F5F9' : '#FFFFFF',
+                  color: currentPage === totalPages ? '#94A3B8' : 'var(--text-primary)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: currentPage === totalPages ? 'not-allowed' : 'pointer'
+                }}
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -894,6 +1120,56 @@ export default function ChatbotAdminPanel() {
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
+              </div>
+
+              {/* Professional Advisory Flags */}
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  Professional Advisory Flags (Triggers bot disclaimer note)
+                </label>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  {[
+                    { key: 'L', label: '⚖️ (L) Legal', color: '#B91C1C', bg: '#FEE2E2' },
+                    { key: 'T', label: '📊 (T) Tax', color: '#B45309', bg: '#FEF3C7' },
+                    { key: 'F', label: '💰 (F) Finance', color: '#1D4ED8', bg: '#DBEAFE' },
+                    { key: 'P', label: '🏢 (P) Platform', color: '#15803D', bg: '#DCFCE7' }
+                  ].map(f => {
+                    const isChecked = modalFormData.flags?.includes(f.key);
+                    return (
+                      <label 
+                        key={f.key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          background: isChecked ? f.bg : '#F8FAFC',
+                          border: isChecked ? `1px solid ${f.color}` : '1px solid var(--border-color)',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: isChecked ? 700 : 500,
+                          color: isChecked ? f.color : 'var(--text-secondary)'
+                        }}
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            const current = modalFormData.flags || [];
+                            if (e.target.checked) {
+                              setModalFormData({ ...modalFormData, flags: [...current, f.key] });
+                            } else {
+                              setModalFormData({ ...modalFormData, flags: current.filter(x => x !== f.key) });
+                            }
+                          }}
+                          style={{ accentColor: f.color }}
+                        />
+                        <span>{f.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Dual Questions (English & Hinglish) */}

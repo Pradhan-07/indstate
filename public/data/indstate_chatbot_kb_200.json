@@ -1,13 +1,4 @@
-/**
- * INDSTATE RAG Structured Knowledge Base (200 Common Real Estate Doubts)
- * Comprehensive dual English & natural Romanized Hinglish entries with flags:
- * (L) Legal - Confirm with qualified lawyer
- * (T) Tax - Confirm with Chartered Accountant
- * (F) Finance - Confirm with lender / financial advisor
- * (P) Platform - Verified by INDSTATE team
- */
-
-export const INITIAL_RAG_KNOWLEDGE_BASE = [
+[
   {
     "id": "kb-001",
     "num": 1,
@@ -5173,17 +5164,4 @@ export const INITIAL_RAG_KNOWLEDGE_BASE = [
       "use"
     ]
   }
-];
-
-export const KNOWLEDGE_BASE_CATEGORIES = [
-  "Buying a Property",
-  "Home Loans & Finance",
-  "RERA & Legal Documents",
-  "Verification & Fraud Prevention",
-  "Under-Construction & Builder Issues",
-  "Registration, Stamp Duty & Taxes",
-  "Renting",
-  "Selling & Listing",
-  "After Purchase & Society",
-  "INDSTATE Platform"
-];
+]

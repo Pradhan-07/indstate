@@ -476,7 +476,37 @@ function formatWarmFriendAnswer(rawAnswer, match, query, entities, isHinglish) {
     ? `\n\nAgar kisi specific project ya situation me aur detail chahiye, toh batayein — main yahin hoon!`
     : `\n\nIf you need me to check a specific project or need further clarification, just ask — I'm right here to help!`;
 
-  return `${nameSalutation}${opening}${milestoneSnippet}${contextSnippet}${rawAnswer}${closing}`;
+  // Professional advice disclaimer based on flags (L), (T), (F), (P)
+  const flags = match?.flags || [];
+  const disclaimers = [];
+
+  if (flags.includes('L')) {
+    disclaimers.push(isHinglish
+      ? "⚖️ *Note: Yeh kanooni jankari samanya suvidha ke liye hai. Kisi bhi legal action ya final agreement se pehle qualified property lawyer se confirm zaroor karein.*"
+      : "⚖️ *Note: This legal information is for general guidance. Please verify all legal documents and agreements with a qualified property lawyer before signing.*");
+  }
+  if (flags.includes('T')) {
+    disclaimers.push(isHinglish
+      ? "📊 *Note: Tax niyam aur slabs samay ke sath badalte rehte hain. Apne exact tax calculation aur filing ke liye Chartered Accountant (CA) se confirm karein.*"
+      : "📊 *Note: Tax rules and exemption limits are subject to periodic amendments. Please confirm with a Chartered Accountant (CA).*");
+  }
+  if (flags.includes('F')) {
+    disclaimers.push(isHinglish
+      ? "💰 *Note: Loan eligibility, interest rates aur charges har bank aur individual profile ke hisaab se alag ho sakte hain. Bank ya financial advisor se confirm karein.*"
+      : "💰 *Note: Loan eligibility, interest rates, and approval terms depend on bank policies and individual credit evaluation. Please confirm with your lender or financial advisor.*");
+  }
+  if (flags.includes('P')) {
+    disclaimers.push(isHinglish
+      ? "🏢 *Note: INDSTATE platform ki features aur policies launch ke dauran update ho sakti hain. Kisi bhi service se pehle official support team se verify karein.*"
+      : "🏢 *Note: Platform features, verification processes, and service policies are verified and updated by the INDSTATE team.*");
+  }
+
+  let disclaimerBlock = "";
+  if (disclaimers.length > 0) {
+    disclaimerBlock = `\n\n${disclaimers.join('\n')}`;
+  }
+
+  return `${nameSalutation}${opening}${milestoneSnippet}${contextSnippet}${rawAnswer}${disclaimerBlock}${closing}`;
 }
 
 /**
