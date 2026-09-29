@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { formatIndianPrice, formatIndianNumber } from '../../utils/currencyFormatter';
 import { useProperty } from '../../context/PropertyContext';
+import { triggerCallNotification, ADMIN_HELPLINE_RAW, ADMIN_HELPLINE_PHONE } from '../../services/leadNotificationService';
 
 export default function PropertyCard({ property, layout = 'grid' }) {
   const { 
@@ -143,20 +144,55 @@ export default function PropertyCard({ property, layout = 'grid' }) {
             <span className="agent-mini-name">{property.agent?.name || 'Verified Owner'}</span>
           </div>
 
-          <div style={{ display: 'flex', gap: '6px' }}>
-            {property.agent?.whatsapp && (
-              <a 
-                href={`https://wa.me/${property.agent.whatsapp}?text=${encodeURIComponent(`Namaste, I am interested in ${property.title} on INDSTATE (ID: ${property.id})`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-outline btn-sm"
-                style={{ padding: '4px 10px', borderColor: 'var(--success)', color: 'var(--success)', fontWeight: 600, letterSpacing: '0.02em', fontSize: '11px' }}
-                title="Chat on WhatsApp"
-              >
-                WA
-              </a>
-            )}
-            <Link to={`/property/${property.id}`} className="btn btn-primary btn-sm" style={{ padding: '5px 14px', fontSize: '12px', fontWeight: 600, letterSpacing: '0.02em' }}>
+          <div style={{ display: 'flex', gap: '5px', alignItems: 'center' }}>
+            <a 
+              href="tel:+916207211360"
+              onClick={() => {
+                triggerCallNotification({
+                  source: 'Property Card: Call Helpline Button',
+                  property: {
+                    id: property.id,
+                    title: property.title,
+                    price: property.price,
+                    locality: property.locality,
+                    city: property.city
+                  },
+                  context: `Direct phone call initiated from card for property: ${property.title}`
+                });
+              }}
+              className="btn btn-outline btn-sm"
+              style={{ padding: '4px 8px', fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+              title={`Call Helpline: ${ADMIN_HELPLINE_PHONE}`}
+            >
+              <Phone size={12} color="var(--primary)" />
+              <span>Call</span>
+            </a>
+
+            <a 
+              href={`https://wa.me/${property.agent?.whatsapp || ADMIN_HELPLINE_RAW}?text=${encodeURIComponent(`Namaste, I am interested in ${property.title} on INDSTATE (ID: ${property.id})`)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                triggerCallNotification({
+                  source: 'Property Card: WhatsApp Button',
+                  property: {
+                    id: property.id,
+                    title: property.title,
+                    price: property.price,
+                    locality: property.locality,
+                    city: property.city
+                  },
+                  context: `User clicked WhatsApp button on property card for: ${property.title}`
+                });
+              }}
+              className="btn btn-outline btn-sm"
+              style={{ padding: '4px 8px', borderColor: 'var(--success)', color: 'var(--success)', fontWeight: 600, letterSpacing: '0.02em', fontSize: '11px' }}
+              title="Chat on WhatsApp"
+            >
+              WA
+            </a>
+
+            <Link to={`/property/${property.id}`} className="btn btn-primary btn-sm" style={{ padding: '5px 12px', fontSize: '12px', fontWeight: 600, letterSpacing: '0.02em' }}>
               Details
             </Link>
           </div>

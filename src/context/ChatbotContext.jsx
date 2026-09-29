@@ -3,6 +3,7 @@ import { detectLanguage } from '../utils/languageDetector';
 import { synthesizeRAGResponse, buildEntryVector } from '../utils/vectorSearchEngine';
 import { INITIAL_RAG_KNOWLEDGE_BASE } from '../data/ragKnowledgeBase';
 import { useProperty } from './PropertyContext';
+import { triggerCallNotification } from '../services/leadNotificationService';
 
 const ChatbotContext = createContext();
 
@@ -185,6 +186,15 @@ export function ChatbotProvider({ children }) {
       propertyTitle: `${leadData.intent || 'Property Inquiry'} - ${leadData.city || 'India'} (Budget: ${leadData.budget || 'Flexible'})`,
       status: 'Chatbot Lead'
     });
+
+    // Send instant WhatsApp notification to business helpline +91 6207 211 360
+    triggerCallNotification({
+      source: 'Chatbot: Request Callback Form',
+      leadName: leadData.name,
+      leadPhone: leadData.phone ? `+91 ${leadData.phone}` : '',
+      context: `City: ${leadData.city || 'India'} | Budget: ${leadData.budget || 'Flexible'} | Intent: ${leadData.intent || 'Property Assistance'}`
+    });
+
     return newLead;
   };
 
@@ -303,6 +313,14 @@ export function ChatbotProvider({ children }) {
       // If fallback, log unanswered query for admin review
       if (ragResult.fallback) {
         logUnansweredQuery(userInput.trim(), lang);
+      }
+
+      // If user requested human handoff or a call in the chatbot conversation, notify helpline
+      if (ragResult.type === 'human_handoff') {
+        triggerCallNotification({
+          source: 'Chatbot Conversation: Human Agent / Call Request',
+          context: `Visitor asked: "${userInput.trim()}". Triggered live advisor handoff card.`
+        });
       }
 
       const botMsg = {

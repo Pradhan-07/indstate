@@ -2,6 +2,7 @@ import React from 'react';
 import { Phone, Mail, ShieldCheck, User, LogIn, PlusCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { triggerCallNotification } from '../../services/leadNotificationService';
 
 export default function TopBar() {
   const { user, setIsAuthModalOpen, setAuthMode, logout } = useAuth();
@@ -11,14 +12,30 @@ export default function TopBar() {
       <div className="container">
         <div className="top-bar-inner">
           <div className="top-bar-left">
-            <span className="top-bar-item">
+            <a 
+              href="https://wa.me/916207211360" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              onClick={() => {
+                triggerCallNotification({
+                  source: 'Header: TopBar Helpline Link',
+                  context: 'Visitor clicked Helpline No. WhatsApp in top header'
+                });
+              }}
+              className="top-bar-item"
+              title="Chat on WhatsApp"
+            >
               <Phone size={13} className="text-saffron" />
-              <span>National Toll-Free: <strong>1800 208 4000</strong></span>
-            </span>
-            <span className="top-bar-item">
+              <span>Helpline No.: <strong>+91 6207 211 360</strong></span>
+            </a>
+            <a 
+              href="mailto:ind.state.build@gmail.com" 
+              className="top-bar-item"
+              title="Send an email"
+            >
               <Mail size={13} />
-              <span>helpdesk@indstate.in</span>
-            </span>
+              <span>ind.state.build@gmail.com</span>
+            </a>
             <span className="top-bar-rera-chip">
               <ShieldCheck size={13} />
               <span>100% RERA Verified Marketplace</span>

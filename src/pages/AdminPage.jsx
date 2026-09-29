@@ -2,13 +2,15 @@ import React, { useState } from 'react';
 import { 
   ShieldCheck, AlertTriangle, CheckCircle, Trash2, 
   ExternalLink, Search, BarChart3, Users, Building, 
-  MessageSquare, ArrowRight, Bot, Sparkles, BookOpen 
+  MessageSquare, ArrowRight, Bot, Sparkles, BookOpen,
+  Phone, Bell
 } from 'lucide-react';
 import { useProperty } from '../context/PropertyContext';
 import { useChatbot } from '../context/ChatbotContext';
 import { formatIndianPrice } from '../utils/currencyFormatter';
 import { Link } from 'react-router-dom';
 import ChatbotAdminPanel from '../components/admin/ChatbotAdminPanel';
+import LeadNotificationAdminPanel from '../components/admin/LeadNotificationAdminPanel';
 
 export default function AdminPage() {
   const { properties, updateProperty, deleteProperty, inquiries } = useProperty();
@@ -124,6 +126,25 @@ export default function AdminPage() {
             }}
           >
             Property Inquiries ({inquiries.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('call-alerts')}
+            style={{
+              padding: '10px 18px',
+              fontWeight: 600,
+              fontSize: '14px',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderBottom: activeTab === 'call-alerts' ? '3px solid var(--saffron)' : '3px solid transparent',
+              color: activeTab === 'call-alerts' ? 'var(--primary)' : 'var(--text-muted)'
+            }}
+          >
+            <Bell size={16} color="var(--saffron)" />
+            <span>WhatsApp Call Alerts (+91 6207 211 360)</span>
           </button>
           <button
             onClick={() => setActiveTab('ai-chatbot')}
@@ -302,10 +323,18 @@ export default function AdminPage() {
                 </div>
               ))}
             </div>
+
+            {/* Embedded WhatsApp Call Alerts Panel */}
+            <LeadNotificationAdminPanel />
           </div>
         )}
 
-        {/* TAB 3: AI Chatbot & RAG Knowledge Base */}
+        {/* TAB 3: WhatsApp Call Alerts Dedicated Tab */}
+        {activeTab === 'call-alerts' && (
+          <LeadNotificationAdminPanel />
+        )}
+
+        {/* TAB 4: AI Chatbot & RAG Knowledge Base */}
         {activeTab === 'ai-chatbot' && (
           <ChatbotAdminPanel />
         )}

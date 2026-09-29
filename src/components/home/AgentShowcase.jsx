@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { ShieldCheck, Star, Phone, MessageSquare, ArrowRight } from 'lucide-react';
 import { INITIAL_AGENTS } from '../../data/initialAgents';
 import ScrollReveal from '../common/ScrollReveal';
+import { triggerCallNotification } from '../../services/leadNotificationService';
 
 export default function AgentShowcase() {
   const [hoveredId, setHoveredId] = useState(null);
@@ -135,6 +136,12 @@ export default function AgentShowcase() {
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     <a 
                       href={`tel:${agent.phone.replace(/\s/g, '')}`}
+                      onClick={() => {
+                        triggerCallNotification({
+                          source: 'Agent Showcase: Call Button',
+                          context: `User clicked Call button for Agent: ${agent.name} (${agent.phone}, ${agent.city})`
+                        });
+                      }}
                       className="btn btn-outline btn-sm"
                       style={{ flex: 1, padding: '8px 0' }}
                       title="Direct Phone Call"
@@ -146,6 +153,12 @@ export default function AgentShowcase() {
                       href={`https://wa.me/${agent.whatsapp}?text=${encodeURIComponent(`Namaste ${agent.name}, I found your profile on INDSTATE and wish to discuss properties in ${agent.city}.`)}`}
                       target="_blank"
                       rel="noreferrer"
+                      onClick={() => {
+                        triggerCallNotification({
+                          source: 'Agent Showcase: WhatsApp Chat Button',
+                          context: `User clicked WhatsApp chat button for Agent: ${agent.name} (${agent.city})`
+                        });
+                      }}
                       className="btn btn-primary btn-sm"
                       style={{ flex: 1, padding: '8px 0' }}
                       title="Chat on WhatsApp"

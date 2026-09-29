@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { useProperty } from '../../context/PropertyContext';
+import { triggerCallNotification } from '../../services/leadNotificationService';
 
 export default function AgentContactCard({ agent, property, onScheduleVisit }) {
   const { submitInquiry } = useProperty();
@@ -27,6 +28,22 @@ export default function AgentContactCard({ agent, property, onScheduleVisit }) {
       message: formData.message,
       agentId: agent?.id
     });
+
+    // Send instant WhatsApp notification to admin helpline
+    triggerCallNotification({
+      source: 'Listing Detail: Inquiry Callback Form',
+      leadName: formData.name,
+      leadPhone: `+91 ${formData.phone}`,
+      property: {
+        id: property.id,
+        title: property.title,
+        price: property.price,
+        locality: property.locality,
+        city: property.city
+      },
+      context: formData.message
+    });
+
     setFormSubmitted(true);
     setTimeout(() => setFormSubmitted(false), 4000);
   };
@@ -122,6 +139,19 @@ export default function AgentContactCard({ agent, property, onScheduleVisit }) {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
         <a 
           href={`tel:${ag.phone.replace(/\s/g, '')}`}
+          onClick={() => {
+            triggerCallNotification({
+              source: 'Property Detail: Call Agent Button',
+              property: {
+                id: property.id,
+                title: property.title,
+                price: property.price,
+                locality: property.locality,
+                city: property.city
+              },
+              context: `User clicked Call Agent (${ag.name} - ${ag.phone}) for ${property.title}`
+            });
+          }}
           className="btn btn-outline"
           style={{ padding: '9px 0', fontSize: '13px' }}
         >
@@ -133,6 +163,19 @@ export default function AgentContactCard({ agent, property, onScheduleVisit }) {
           href={`https://wa.me/${ag.whatsapp}?text=${encodeURIComponent(`Namaste ${ag.name}, I am interested in ${property.title} (ID: ${property.id}) listed on INDSTATE.`)}`}
           target="_blank"
           rel="noreferrer"
+          onClick={() => {
+            triggerCallNotification({
+              source: 'Property Detail: WhatsApp Button',
+              property: {
+                id: property.id,
+                title: property.title,
+                price: property.price,
+                locality: property.locality,
+                city: property.city
+              },
+              context: `User clicked WhatsApp button to chat with ${ag.name} regarding ${property.title}`
+            });
+          }}
           className="btn btn-outline"
           style={{ padding: '9px 0', fontSize: '13px', borderColor: 'var(--success)', color: 'var(--success)' }}
         >

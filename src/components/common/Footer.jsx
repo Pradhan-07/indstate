@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { INDIAN_STATES, UNION_TERRITORIES } from '../../data/indianStatesAndCities';
 import IndstateLogo from './IndstateLogo';
+import { triggerCallNotification } from '../../services/leadNotificationService';
 
 // Smooth, calm easing curve for financial/real estate trust
 const footerEase = [0.16, 1, 0.3, 1];
@@ -261,14 +262,30 @@ export default function Footer() {
                 <MapPin size={15} color="var(--saffron)" />
                 BKC Corporate Park, Bandra East, Mumbai 400051
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <a 
+                href="https://wa.me/916207211360"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  triggerCallNotification({
+                    source: 'Footer: Helpline WhatsApp Link',
+                    context: 'Visitor clicked Helpline No. in footer'
+                  });
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#CBD5E1', textDecoration: 'none' }}
+                className="footer-interactive-link"
+              >
                 <Phone size={15} color="var(--saffron)" />
-                +91 1800 208 4000 (Toll Free)
-              </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                Helpline No.: +91 6207 211 360
+              </a>
+              <a 
+                href="mailto:ind.state.build@gmail.com"
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#CBD5E1', textDecoration: 'none' }}
+                className="footer-interactive-link"
+              >
                 <Mail size={15} color="var(--saffron)" />
-                support@indstate.in
-              </span>
+                ind.state.build@gmail.com
+              </a>
             </div>
           </motion.div>
 

@@ -9,6 +9,7 @@ import { useChatbot } from '../../context/ChatbotContext';
 import { formatIndianPrice } from '../../utils/currencyFormatter';
 import { Link } from 'react-router-dom';
 import ChatbotOrbAvatar from './ChatbotOrbAvatar';
+import { triggerCallNotification } from '../../services/leadNotificationService';
 
 const DEFAULT_QUICK_REPLIES = [
   "Buy Property", 
@@ -417,9 +418,15 @@ export default function FloatingChatbot() {
                         </p>
                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                           <a 
-                            href={`https://wa.me/919876543210?text=${encodeURIComponent(`Namaste INDSTATE team, I have a property query: "${msg.queryRef || 'Real estate assistance'}"`)}`}
+                            href={`https://wa.me/916207211360?text=${encodeURIComponent(`Namaste INDSTATE team, I have a property query: "${msg.queryRef || 'Real estate assistance'}"`)}`}
                             target="_blank" 
                             rel="noreferrer"
+                            onClick={() => {
+                              triggerCallNotification({
+                                source: 'Chatbot: WhatsApp Advisor CTA',
+                                context: `User clicked WhatsApp Advisor button for query: "${msg.queryRef || 'Real estate assistance'}"`
+                              });
+                            }}
                             className="btn btn-sm"
                             style={{ background: 'var(--success)', color: '#FFFFFF', fontSize: '11px', padding: '6px 12px' }}
                           >

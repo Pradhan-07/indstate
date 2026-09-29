@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { MapPin, Phone, Mail, Clock, Send, CheckCircle2 } from 'lucide-react';
+import { triggerCallNotification } from '../services/leadNotificationService';
 
 export default function ContactPage() {
   const [submitted, setSubmitted] = useState(false);
@@ -7,6 +8,15 @@ export default function ContactPage() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Trigger automated WhatsApp notification to admin helpline +91 6207 211 360
+    triggerCallNotification({
+      source: 'Contact Page: General Inquiry Form',
+      leadName: formData.name,
+      leadPhone: `+91 ${formData.phone}`,
+      context: `City: ${formData.city} | Email: ${formData.email || 'N/A'} | Message: ${formData.message}`
+    });
+
     setSubmitted(true);
     setTimeout(() => {
       setSubmitted(false);
@@ -145,13 +155,34 @@ export default function ContactPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
             <div style={{ background: '#FFFFFF', padding: '24px', borderRadius: 'var(--radius-lg)', border: '1.5px solid var(--saffron)' }}>
               <h4 style={{ fontSize: '16px', color: 'var(--primary)', marginBottom: '8px' }}>
-                National Toll-Free Assistance
+                Helpline Assistance
               </h4>
-              <div style={{ fontSize: '26px', fontWeight: 800, color: 'var(--saffron)', fontFamily: 'var(--font-display)', marginBottom: '6px' }}>
-                1800 208 4000
+              <a 
+                href="https://wa.me/916207211360"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => {
+                  triggerCallNotification({
+                    source: 'Contact Page: Helpline CTA',
+                    context: 'User clicked on Helpline WhatsApp contact from Contact Page'
+                  });
+                }}
+                style={{ fontSize: '24px', fontWeight: 800, color: 'var(--saffron)', fontFamily: 'var(--font-display)', marginBottom: '8px', display: 'block', textDecoration: 'none' }}
+                title="Chat on WhatsApp"
+              >
+                +91 6207 211 360
+              </a>
+              <div style={{ marginBottom: '8px' }}>
+                <a 
+                  href="mailto:ind.state.build@gmail.com" 
+                  style={{ fontSize: '14px', color: 'var(--primary)', fontWeight: 600, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  title="Send an email"
+                >
+                  <span>✉️ ind.state.build@gmail.com</span>
+                </a>
               </div>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Available Monday to Saturday, 9:00 AM to 8:00 PM IST
+                Available Monday to Saturday, 9:00 AM to 8:00 PM IST (WhatsApp & Email support)
               </span>
             </div>
 

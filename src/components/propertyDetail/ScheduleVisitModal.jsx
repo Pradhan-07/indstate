@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Calendar, Clock, MapPin, CheckCircle2, User, Phone } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { useProperty } from '../../context/PropertyContext';
+import { triggerCallNotification } from '../../services/leadNotificationService';
 
 export default function ScheduleVisitModal({ property, isOpen, onClose }) {
   const { submitInquiry } = useProperty();
@@ -32,6 +33,22 @@ export default function ScheduleVisitModal({ property, isOpen, onClose }) {
       visitType: visitType,
       attendees: attendees,
       status: 'Visit Scheduled'
+    });
+
+    // Send instant WhatsApp notification to admin helpline
+    triggerCallNotification({
+      source: 'Schedule Site Visit / Callback Form',
+      leadName: name,
+      leadPhone: `+91 ${phone}`,
+      property: {
+        id: property.id,
+        title: property.title,
+        price: property.price,
+        locality: property.locality,
+        city: property.city
+      },
+      requestedDateTime: `${date} at ${timeSlot} (${visitType})`,
+      context: `Scheduled ${visitType} for ${attendees} attendee(s). Property: ${property.title}`
     });
 
     confetti({
