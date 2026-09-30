@@ -467,9 +467,22 @@
 
 /* Mobile & Tablet Adjustments */
 @media (max-width: 1024px) {
+  .why-indstate-scroll-track {
+    height: auto;
+  }
+
+  .why-indstate-sticky {
+    position: relative;
+    height: auto;
+    padding-top: 50px;
+    padding-bottom: 40px;
+    overflow: visible;
+  }
+
   .why-indstate-header {
     grid-template-columns: 1fr;
     gap: 16px;
+    padding: 0 20px;
   }
   
   .why-indstate-header-right {
@@ -478,9 +491,30 @@
     justify-content: space-between;
   }
   
+  .why-indstate-track-viewport {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x mandatory;
+    scrollbar-width: none;
+    padding-bottom: 24px;
+    padding-left: 20px;
+  }
+
+  .why-indstate-track-viewport::-webkit-scrollbar {
+    display: none;
+  }
+
+  .why-indstate-track-motion {
+    transform: none !important;
+    padding-right: 32px;
+  }
+
   .why-indstate-column {
-    width: 290px;
-    margin-right: 36px;
+    width: 300px;
+    margin-right: 28px;
+    scroll-snap-align: start;
+    opacity: 1 !important;
   }
   
   .why-indstate-image-card {
@@ -489,22 +523,16 @@
 }
 
 @media (max-width: 768px) {
-  .why-indstate-scroll-track {
-    height: auto;
-  }
-
   .why-indstate-sticky {
-    position: relative;
-    height: auto;
-    padding-top: 40px;
-    padding-bottom: 40px;
-    overflow: visible;
+    padding-top: 36px;
+    padding-bottom: 32px;
   }
 
   .why-indstate-header {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
+    padding: 0 16px;
   }
 
   .why-indstate-header-right {
@@ -514,32 +542,16 @@
   }
 
   .why-indstate-track-viewport {
-    overflow-x: auto;
-    overflow-y: hidden;
-    -webkit-overflow-scrolling: touch;
-    scroll-snap-type: x mandatory;
-    scrollbar-width: none;
-    padding-bottom: 24px;
-  }
-
-  .why-indstate-track-viewport::-webkit-scrollbar {
-    display: none;
-  }
-
-  .why-indstate-track-motion {
-    transform: none !important;
-    padding-right: 48px;
+    padding-left: 16px;
   }
 
   .why-indstate-column {
     width: 270px;
-    margin-right: 24px;
-    scroll-snap-align: start;
-    opacity: 1 !important;
+    margin-right: 20px;
   }
 
   .why-indstate-image-card {
-    height: 270px;
+    height: 260px;
   }
 }
 

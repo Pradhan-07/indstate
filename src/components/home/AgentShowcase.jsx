@@ -30,8 +30,8 @@ export default function AgentShowcase() {
         <div 
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-            gap: '24px',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))',
+            gap: 'clamp(14px, 3vw, 24px)',
             marginBottom: '40px'
           }}
         >
@@ -52,7 +52,7 @@ export default function AgentShowcase() {
                     background: '#FFFFFF',
                     borderRadius: 'var(--radius-lg)',
                     border: isHovered ? '1px solid var(--saffron)' : '1px solid var(--border-color)',
-                    padding: '24px',
+                    padding: 'clamp(18px, 3.5vw, 24px)',
                     textAlign: 'center',
                     boxShadow: isHovered ? '0 14px 30px rgba(15, 23, 42, 0.1)' : 'var(--shadow-xs)',
                     transition: 'box-shadow 180ms ease, border-color 180ms ease',

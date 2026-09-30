@@ -199,75 +199,97 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Drawer Backdrop & Menu */}
       {mobileMenuOpen && (
-        <div 
-          className="mobile-nav-drawer"
-          style={{
-            background: '#FFFFFF',
-            borderTop: '1px solid var(--border-color)',
-            padding: '16px 20px 24px 20px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '8px',
-            boxShadow: 'var(--shadow-lg)',
-            maxHeight: 'calc(100vh - 76px)',
-            overflowY: 'auto'
-          }}
-        >
-          {/* User Auth in Mobile Drawer */}
-          {user ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', background: 'var(--bg-alt)', borderRadius: '10px', marginBottom: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <UserCheck size={18} color="var(--primary)" />
-                <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--primary)' }}>{user.name || 'My Account'}</span>
-              </div>
-              <Link 
-                to="/dashboard" 
-                onClick={() => setMobileMenuOpen(false)} 
-                className="btn btn-outline btn-sm"
-                style={{ minHeight: '36px', padding: '6px 14px' }}
-              >
-                Dashboard
-              </Link>
-            </div>
-          ) : (
-            <button 
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setAuthMode('login');
-                setIsAuthModalOpen(true);
-              }} 
-              className="btn btn-outline"
-              style={{ width: '100%', minHeight: '44px', justifyContent: 'center', marginBottom: '8px' }}
-            >
-              Sign In / Register
-            </button>
-          )}
-
-          <Link to="/" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Home</Link>
-          <Link to="/properties?purpose=Buy" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🏢 Buy Residential (Flats & Villas)</Link>
-          <Link to="/properties?purpose=Rent" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🔑 Rent Homes & Apartments</Link>
-          <Link to="/properties?purpose=PG-Co-living" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🛏️ PG & Co-living</Link>
-          <Link to="/properties?purpose=Commercial" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🏙️ Commercial Spaces</Link>
-          <Link to="/properties?reraOnly=true" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link" style={{ color: 'var(--rera-green)', fontWeight: 700 }}>🛡️ 100% RERA Verified Only</Link>
-          <Link to="/agents" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Verified Agents</Link>
-          <Link to="/calculator" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">EMI Calculator</Link>
-          <Link to="/compare" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Compare Properties ({compareList.length})</Link>
-          <Link to="/blog" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Market News</Link>
-          <Link to="/rera-disclaimer" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">RERA Compliance</Link>
-
-          <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 0' }} />
-          
-          <Link 
-            to="/add-property" 
-            onClick={() => setMobileMenuOpen(false)} 
-            className="btn btn-primary"
-            style={{ minHeight: '44px', justifyContent: 'center' }}
+        <>
+          <div 
+            className="mobile-nav-backdrop"
+            onClick={() => setMobileMenuOpen(false)}
+            style={{
+              position: 'fixed',
+              top: '64px',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: 'rgba(9, 16, 36, 0.45)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              zIndex: 998,
+              animation: 'fadeIn 0.2s ease-out'
+            }}
+          />
+          <div 
+            className="mobile-nav-drawer"
+            style={{
+              position: 'relative',
+              zIndex: 999,
+              background: '#FFFFFF',
+              borderTop: '1px solid var(--border-color)',
+              padding: '16px 20px 28px 20px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px',
+              boxShadow: 'var(--shadow-xl)',
+              maxHeight: 'calc(100dvh - 64px)',
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+              animation: 'slideDown 0.24s cubic-bezier(0.16, 1, 0.3, 1)'
+            }}
           >
-            + Post Free Property Ad
-          </Link>
-        </div>
+            {/* User Auth in Mobile Drawer */}
+            {user ? (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'var(--bg-alt)', borderRadius: '10px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <UserCheck size={18} color="var(--primary)" />
+                  <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--primary)' }}>{user.name || 'My Account'}</span>
+                </div>
+                <Link 
+                  to="/dashboard" 
+                  onClick={() => setMobileMenuOpen(false)} 
+                  className="btn btn-outline btn-sm"
+                  style={{ minHeight: '36px', padding: '6px 14px' }}
+                >
+                  Dashboard
+                </Link>
+              </div>
+            ) : (
+              <button 
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setAuthMode('login');
+                  setIsAuthModalOpen(true);
+                }} 
+                className="btn btn-outline"
+                style={{ width: '100%', minHeight: '44px', justifyContent: 'center', marginBottom: '6px', fontWeight: 700 }}
+              >
+                Sign In / Register
+              </button>
+            )}
+
+            <Link to="/" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Home</Link>
+            <Link to="/properties?purpose=Buy" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🏢 Buy Residential (Flats & Villas)</Link>
+            <Link to="/properties?purpose=Rent" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🔑 Rent Homes & Apartments</Link>
+            <Link to="/properties?purpose=PG-Co-living" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🛏️ PG & Co-living</Link>
+            <Link to="/properties?purpose=Commercial" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">🏙️ Commercial Spaces</Link>
+            <Link to="/properties?reraOnly=true" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link" style={{ color: 'var(--rera-green)', fontWeight: 700 }}>🛡️ 100% RERA Verified Only</Link>
+            <Link to="/agents" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Verified Agents</Link>
+            <Link to="/calculator" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">EMI Calculator</Link>
+            <Link to="/compare" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Compare Properties ({compareList.length})</Link>
+            <Link to="/blog" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">Market News</Link>
+            <Link to="/rera-disclaimer" onClick={() => setMobileMenuOpen(false)} className="mobile-nav-link">RERA Compliance</Link>
+
+            <div style={{ height: '1px', background: 'var(--border-light)', margin: '6px 0' }} />
+            
+            <Link 
+              to="/add-property" 
+              onClick={() => setMobileMenuOpen(false)} 
+              className="btn btn-primary"
+              style={{ minHeight: '44px', justifyContent: 'center', fontWeight: 700 }}
+            >
+              + Post Free Property Ad
+            </Link>
+          </div>
+        </>
       )}
 
       <style>{`
@@ -285,9 +307,9 @@ export default function Navbar() {
           cursor: pointer;
         }
         .mobile-nav-link {
-          padding: 10px 12px;
+          padding: 10px 14px;
           border-radius: 8px;
-          font-size: 14.5px;
+          font-size: 15px;
           font-weight: 600;
           color: var(--text-main);
           text-decoration: none;
@@ -300,12 +322,20 @@ export default function Navbar() {
           background: var(--bg-alt);
           color: var(--primary);
         }
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            transform: translateY(-8px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
         @media (max-width: 1024px) {
           .mobile-menu-toggle {
             display: flex !important;
           }
-        }
-        @media (max-width: 768px) {
           .nav-action-desktop-only {
             display: none !important;
           }

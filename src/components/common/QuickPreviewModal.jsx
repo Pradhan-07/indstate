@@ -32,34 +32,38 @@ export default function QuickPreviewModal() {
   return (
     <div className="modal-overlay" onClick={() => setQuickPreviewProperty(null)}>
       <div 
-        className="modal-content" 
+        className="modal-content quick-preview-modal-box" 
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '820px', padding: 0, overflow: 'hidden' }}
+        style={{ maxWidth: '820px', padding: 0, overflow: 'hidden', position: 'relative' }}
       >
         {/* Close Button */}
         <button 
           onClick={() => setQuickPreviewProperty(null)}
           style={{
             position: 'absolute',
-            top: '16px',
-            right: '16px',
-            background: 'rgba(15, 37, 68, 0.7)',
+            top: '12px',
+            right: '12px',
+            background: 'rgba(15, 37, 68, 0.75)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             color: '#FFFFFF',
-            width: '44px',
-            height: '44px',
+            width: '40px',
+            height: '40px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 10
+            zIndex: 20,
+            border: '1px solid rgba(255, 255, 255, 0.2)'
           }}
+          aria-label="Close Preview"
         >
           <X size={20} />
         </button>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))' }}>
           {/* Left: Image Slider */}
-          <div style={{ position: 'relative', height: '360px', background: '#000' }}>
+          <div style={{ position: 'relative', height: 'clamp(220px, 40vw, 360px)', background: '#000' }}>
             <img 
               src={images[currentImgIndex] || 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80'} 
               alt={prop.title} 
@@ -215,6 +219,15 @@ export default function QuickPreviewModal() {
             </div>
           </div>
         </div>
+        <style>{`
+          @media (max-width: 640px) {
+            .quick-preview-modal-box {
+              max-height: 90dvh !important;
+              overflow-y: auto !important;
+              -webkit-overflow-scrolling: touch !important;
+            }
+          }
+        `}</style>
       </div>
     </div>
   );

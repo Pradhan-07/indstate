@@ -1,16 +1,16 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Building2, ChevronLeft, ChevronRight } from 'lucide-react';
 import ScrollReveal from '../common/ScrollReveal';
 
-export function PropertyCard({ type, innerRef }) {
+export function PropertyCard({ type, innerRef, cardWidth = 380, cardHeight = 295 }) {
   return (
     <div
       ref={innerRef}
       style={{
-        width: '380px',
-        height: '295px',
-        borderRadius: '24px',
+        width: `${cardWidth}px`,
+        height: `${cardHeight}px`,
+        borderRadius: '20px',
         position: 'relative',
         overflow: 'hidden',
         background: '#0F172A',
@@ -134,9 +134,20 @@ export default function PropertyTypes() {
     }
   ];
 
-  const CARD_WIDTH = 380;
-  const CARD_GAP = 28;
-  const PADDING_LEFT = 60;
+  const [dim, setDim] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const w = window.innerWidth;
+      if (w <= 480) return { width: Math.min(275, Math.floor(w * 0.72)), height: 215, gap: 14, paddingLeft: 20 };
+      if (w <= 768) return { width: 290, height: 230, gap: 18, paddingLeft: 30 };
+      if (w <= 1024) return { width: 330, height: 260, gap: 22, paddingLeft: 40 };
+    }
+    return { width: 380, height: 295, gap: 28, paddingLeft: 60 };
+  });
+
+  const CARD_WIDTH = dim.width;
+  const CARD_GAP = dim.gap;
+  const CARD_HEIGHT = dim.height;
+  const PADDING_LEFT = dim.paddingLeft;
   const SINGLE_SET_WIDTH = types.length * (CARD_WIDTH + CARD_GAP);
 
   const carouselItems = [
@@ -148,6 +159,16 @@ export default function PropertyTypes() {
 
   useEffect(() => {
     const handleResize = () => {
+      const w = window.innerWidth;
+      if (w <= 480) {
+        setDim({ width: Math.min(275, Math.floor(w * 0.72)), height: 215, gap: 14, paddingLeft: 20 });
+      } else if (w <= 768) {
+        setDim({ width: 290, height: 230, gap: 18, paddingLeft: 30 });
+      } else if (w <= 1024) {
+        setDim({ width: 330, height: 260, gap: 22, paddingLeft: 40 });
+      } else {
+        setDim({ width: 380, height: 295, gap: 28, paddingLeft: 60 });
+      }
       if (containerRef.current) {
         containerWidthRef.current = containerRef.current.clientWidth;
       }
@@ -216,7 +237,7 @@ export default function PropertyTypes() {
         cancelAnimationFrame(animFrameRef.current);
       }
     };
-  }, [SINGLE_SET_WIDTH]);
+  }, [SINGLE_SET_WIDTH, PADDING_LEFT, CARD_WIDTH, CARD_GAP]);
 
   const handleManualScroll = (direction) => {
     const delta = (CARD_WIDTH + CARD_GAP) * direction;
@@ -242,14 +263,17 @@ export default function PropertyTypes() {
           </div>
         </ScrollReveal>
 
-        <div style={{
-          position: 'absolute',
-          right: '20px',
-          top: '20px',
-          display: 'flex',
-          gap: '10px',
-          zIndex: 10
-        }}>
+        <div 
+          className="property-types-nav-btns"
+          style={{
+            position: 'absolute',
+            right: '20px',
+            top: '20px',
+            display: 'flex',
+            gap: '10px',
+            zIndex: 10
+          }}
+        >
           <button
             onClick={() => handleManualScroll(-1)}
             aria-label="Previous Category"
@@ -338,10 +362,19 @@ export default function PropertyTypes() {
               key={`${t.setKey}-${t.id}`}
               type={t}
               innerRef={(el) => (cardsRef.current[idx] = el)}
+              cardWidth={CARD_WIDTH}
+              cardHeight={CARD_HEIGHT}
             />
           ))}
         </div>
       </div>
+      <style>{`
+        @media (max-width: 768px) {
+          .property-types-nav-btns {
+            display: none !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }

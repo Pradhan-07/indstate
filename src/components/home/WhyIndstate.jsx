@@ -102,7 +102,7 @@ export default function WhyIndstate() {
   // Measure track scrollable width dynamically
   const updateMeasurements = useCallback(() => {
     if (typeof window === 'undefined') return;
-    const mobile = window.innerWidth <= 768;
+    const mobile = window.innerWidth <= 1024;
     setIsMobile(mobile);
 
     if (trackRef.current && !mobile) {

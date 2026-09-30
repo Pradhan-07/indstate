@@ -16,19 +16,19 @@ export default function PropertySortBar({
         background: '#FFFFFF',
         borderRadius: 'var(--radius-md)',
         border: '1px solid var(--border-color)',
-        padding: '14px 20px',
+        padding: 'clamp(12px, 3vw, 16px) clamp(14px, 3vw, 20px)',
         marginBottom: '24px',
         display: 'flex',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
         alignItems: 'center',
-        gap: '16px',
+        gap: '14px',
         boxShadow: 'var(--shadow-xs)'
       }}
     >
       {/* Left: Results Count & Active Filter Chips */}
       <div>
-        <div style={{ fontSize: '15px', color: 'var(--primary)' }}>
+        <div style={{ fontSize: '14.5px', color: 'var(--primary)' }}>
           Showing <strong>{totalCount}</strong> Verified Properties
           {filters.city && ` in ${filters.city}`}
           {filters.state && !filters.city && ` in ${filters.state}`}
@@ -58,7 +58,7 @@ export default function PropertySortBar({
       </div>
 
       {/* Right: View Toggles & Sort */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px' }}>
         {/* Sort By */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <ArrowUpDown size={14} color="var(--text-muted)" />

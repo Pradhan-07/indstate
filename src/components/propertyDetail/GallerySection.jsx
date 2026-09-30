@@ -13,7 +13,7 @@ export default function GallerySection({ images = [], title }) {
       <div 
         style={{
           position: 'relative',
-          height: '480px',
+          height: 'clamp(240px, 48vw, 480px)',
           borderRadius: 'var(--radius-lg)',
           overflow: 'hidden',
           cursor: 'pointer',
@@ -36,23 +36,24 @@ export default function GallerySection({ images = [], title }) {
           }}
           style={{
             position: 'absolute',
-            bottom: '20px',
-            right: '20px',
-            background: 'rgba(15, 37, 68, 0.8)',
+            bottom: 'clamp(10px, 3vw, 20px)',
+            right: 'clamp(10px, 3vw, 20px)',
+            background: 'rgba(15, 37, 68, 0.82)',
             backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
             color: '#FFFFFF',
-            padding: '10px 18px',
+            padding: '8px 14px',
             borderRadius: 'var(--radius-md)',
-            fontSize: '13px',
+            fontSize: '12px',
             fontWeight: 600,
             display: 'flex',
             alignItems: 'center',
-            gap: '8px',
+            gap: '6px',
             border: '1px solid rgba(255, 255, 255, 0.2)'
           }}
         >
-          <Maximize2 size={16} />
-          <span>View All Photos ({images.length})</span>
+          <Maximize2 size={15} />
+          <span>Photos ({images.length})</span>
         </button>
       </div>
 
@@ -61,10 +62,12 @@ export default function GallerySection({ images = [], title }) {
         <div 
           style={{
             display: 'flex',
-            gap: '12px',
-            marginTop: '14px',
+            gap: '10px',
+            marginTop: '12px',
             overflowX: 'auto',
-            paddingBottom: '6px'
+            paddingBottom: '4px',
+            WebkitOverflowScrolling: 'touch',
+            scrollbarWidth: 'none'
           }}
         >
           {images.map((img, idx) => (
@@ -72,8 +75,8 @@ export default function GallerySection({ images = [], title }) {
               key={idx}
               onClick={() => setActiveIdx(idx)}
               style={{
-                width: '100px',
-                height: '75px',
+                width: 'clamp(68px, 14vw, 100px)',
+                height: 'clamp(50px, 10vw, 75px)',
                 borderRadius: 'var(--radius-md)',
                 overflow: 'hidden',
                 border: activeIdx === idx ? '2.5px solid var(--saffron)' : '1px solid var(--border-color)',

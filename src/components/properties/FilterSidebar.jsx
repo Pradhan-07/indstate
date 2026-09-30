@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   Filter, RotateCcw, ShieldCheck, MapPin, 
-  Building, IndianRupee, Home, BookmarkCheck 
+  BookmarkCheck, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { INDIAN_STATES, UNION_TERRITORIES } from '../../data/indianStatesAndCities';
 import { formatIndianPrice } from '../../utils/currencyFormatter';
@@ -47,30 +47,75 @@ export default function FilterSidebar({ filters, setFilters, resetFilters }) {
     setTimeout(() => setSavedSearchSuccess(false), 2500);
   };
 
+  const [mobileExpanded, setMobileExpanded] = useState(false);
+  const activeCount = [
+    filters.purpose,
+    filters.state,
+    filters.city,
+    filters.locality,
+    filters.type,
+    filters.bhk,
+    filters.reraOnly,
+    filters.furnishing,
+    filters.possession,
+    filters.maxPrice < 500000000
+  ].filter(Boolean).length;
+
   return (
     <aside 
+      className="filter-sidebar-card"
       style={{
         background: '#FFFFFF',
         borderRadius: 'var(--radius-lg)',
         border: '1px solid var(--border-color)',
-        padding: '24px',
+        padding: '20px',
         boxShadow: 'var(--shadow-xs)'
       }}
     >
-      {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', paddingBottom: '14px', borderBottom: '1px solid var(--border-light)' }}>
+      {/* Header with Mobile Accordion Toggle */}
+      <div 
+        className="filter-sidebar-header"
+        onClick={() => setMobileExpanded(prev => !prev)}
+        style={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center', 
+          cursor: 'pointer',
+          paddingBottom: mobileExpanded ? '14px' : '0', 
+          borderBottom: mobileExpanded ? '1px solid var(--border-light)' : 'none' 
+        }}
+      >
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <Filter size={18} color="var(--primary)" />
-          <h3 style={{ fontSize: '18px', color: 'var(--primary)' }}>Filters</h3>
+          <h3 style={{ fontSize: '17px', color: 'var(--primary)' }}>Filters</h3>
+          {activeCount > 0 && (
+            <span style={{ background: 'var(--saffron)', color: '#fff', fontSize: '11px', fontWeight: 700, padding: '2px 7px', borderRadius: '10px' }}>
+              {activeCount}
+            </span>
+          )}
         </div>
-        <button 
-          onClick={resetFilters} 
-          style={{ fontSize: '12px', color: 'var(--saffron)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}
-        >
-          <RotateCcw size={13} />
-          <span>Reset</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          {activeCount > 0 && (
+            <button 
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                resetFilters();
+              }} 
+              style={{ fontSize: '12px', color: 'var(--saffron)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              <RotateCcw size={13} />
+              <span>Reset</span>
+            </button>
+          )}
+          <span className="filter-toggle-icon-mobile" style={{ color: 'var(--primary)' }}>
+            {mobileExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+          </span>
+        </div>
       </div>
+
+      {/* Filter Body Content */}
+      <div className={`filter-sidebar-body ${mobileExpanded ? 'is-expanded' : ''}`}>
 
       {/* 1. Purpose (Buy / Rent / PG / Commercial / Plots) */}
       <div style={{ marginBottom: '20px' }}>
@@ -296,16 +341,47 @@ export default function FilterSidebar({ filters, setFilters, resetFilters }) {
         </div>
       </div>
 
-      {/* Save Search Button */}
-      <button 
-        type="button" 
-        onClick={handleSaveSearch}
-        className="btn btn-outline" 
-        style={{ width: '100%', fontSize: '13px', padding: '10px' }}
-      >
-        <BookmarkCheck size={16} />
-        <span>{savedSearchSuccess ? "Search Saved in Dashboard!" : "Save This Search Alert"}</span>
-      </button>
+        {/* Save Search Button */}
+        <button 
+          type="button" 
+          onClick={handleSaveSearch}
+          className="btn btn-outline" 
+          style={{ width: '100%', fontSize: '13px', padding: '10px' }}
+        >
+          <BookmarkCheck size={16} />
+          <span>{savedSearchSuccess ? "Search Saved in Dashboard!" : "Save This Search Alert"}</span>
+        </button>
+      </div>
+
+      <style>{`
+        @media (max-width: 1024px) {
+          .filter-sidebar-body {
+            display: none;
+            margin-top: 14px;
+          }
+          .filter-sidebar-body.is-expanded {
+            display: block;
+            animation: fadeIn 0.22s ease-out;
+          }
+          .filter-toggle-icon-mobile {
+            display: inline-flex !important;
+          }
+        }
+        @media (min-width: 1025px) {
+          .filter-sidebar-body {
+            display: block !important;
+            margin-top: 16px;
+          }
+          .filter-toggle-icon-mobile {
+            display: none !important;
+          }
+          .filter-sidebar-header {
+            cursor: default !important;
+            padding-bottom: 14px !important;
+            border-bottom: 1px solid var(--border-light) !important;
+          }
+        }
+      `}</style>
     </aside>
   );
 }

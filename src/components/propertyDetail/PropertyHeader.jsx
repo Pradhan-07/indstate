@@ -86,22 +86,22 @@ export default function PropertyHeader({ property }) {
 
       {/* Title & Price Header Row */}
       <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'flex-start', gap: '20px' }}>
-        <div style={{ maxWidth: '780px' }}>
-          <h1 style={{ fontSize: '32px', color: 'var(--primary)', marginBottom: '8px', lineHeight: 1.25 }}>
+        <div style={{ maxWidth: '780px', flex: '1 1 300px' }}>
+          <h1 style={{ fontSize: 'clamp(22px, 4.5vw, 32px)', color: 'var(--primary)', marginBottom: '8px', lineHeight: 1.25 }}>
             {property.title}
           </h1>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '15px' }}>
-            <MapPin size={17} color="var(--saffron)" />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-muted)', fontSize: '14.5px' }}>
+            <MapPin size={16} color="var(--saffron)" />
             <span>{property.address}</span>
           </div>
         </div>
 
         {/* Price & Charges Block */}
-        <div style={{ textAlign: 'right', background: 'var(--bg-alt)', padding: '16px 24px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
+        <div className="property-header-price-box" style={{ background: 'var(--bg-alt)', padding: '16px 22px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)' }}>
           <div style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.8px', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '2px' }}>
             {isRent ? 'MONTHLY RENT' : 'PRICE (INR ₹)'}
           </div>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '32px', fontWeight: 800, color: 'var(--primary)' }}>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(24px, 5vw, 32px)', fontWeight: 800, color: 'var(--primary)' }}>
             {formatIndianPrice(property.price, isRent)}
           </div>
           {property.pricePerSqFt && (

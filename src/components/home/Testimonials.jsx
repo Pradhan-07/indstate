@@ -133,7 +133,7 @@ export default function Testimonials() {
                 style={{
                   width: '100%',
                   background: 'var(--bg-page)',
-                  padding: '40px 48px',
+                  padding: 'clamp(20px, 4.5vw, 44px)',
                   borderRadius: 'var(--radius-xl)',
                   border: '1px solid var(--border-color)',
                   boxShadow: '0 12px 30px rgba(15, 23, 42, 0.06)',
@@ -141,24 +141,24 @@ export default function Testimonials() {
                 }}
               >
                 {/* Top Rating & Quote Icon */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                   <div style={{ display: 'flex', gap: '4px', color: '#D97706' }}>
                     {[...Array(currentReview.rating)].map((_, i) => (
                       <Star key={i} size={18} fill="#D97706" />
                     ))}
                   </div>
                   <div style={{ color: 'var(--saffron)', opacity: 0.35 }}>
-                    <Quote size={32} />
+                    <Quote size={28} />
                   </div>
                 </div>
 
                 {/* Review Text */}
                 <p style={{ 
                   fontStyle: 'italic', 
-                  fontSize: '17px', 
-                  lineHeight: 1.7, 
+                  fontSize: 'clamp(14px, 2.5vw, 17px)', 
+                  lineHeight: 1.65, 
                   color: 'var(--primary)', 
-                  marginBottom: '28px',
+                  marginBottom: '22px',
                   fontFamily: 'var(--font-serif)',
                   fontWeight: 500
                 }}>

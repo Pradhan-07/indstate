@@ -421,7 +421,7 @@ export default function Footer() {
           <div style={{ color: '#94A3B8' }}>
             © {new Date().getFullYear()} INDSTATE Technologies India Pvt. Ltd. All rights reserved. Made with <Heart size={12} style={{ display: 'inline', color: '#EF4444' }} /> in India.
           </div>
-          <div style={{ display: 'flex', gap: '20px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
             <Link to="/rera-disclaimer" className="footer-interactive-link" style={{ fontSize: '12px' }}>RERA Statutory Disclaimer</Link>
             <Link to="/privacy" className="footer-interactive-link" style={{ fontSize: '12px' }}>Privacy Policy</Link>
             <Link to="/terms" className="footer-interactive-link" style={{ fontSize: '12px' }}>Terms & Conditions</Link>

@@ -33,8 +33,8 @@ export default function PopularCities() {
         <div 
           style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-            gap: '24px'
+            gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 260px), 1fr))',
+            gap: 'clamp(14px, 3vw, 24px)'
           }}
         >
           {POPULAR_INDIAN_CITIES.map((city, idx) => (
@@ -57,7 +57,7 @@ export default function PopularCities() {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-end',
-                    padding: '24px',
+                    padding: 'clamp(16px, 3vw, 24px)',
                     color: '#FFFFFF'
                   }}
                 >
