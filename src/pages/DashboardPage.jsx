@@ -177,6 +177,24 @@ export default function DashboardPage() {
             <Building2 size={16} />
             <span>My Property Listings ({myProperties.length})</span>
           </button>
+
+          <button
+            onClick={() => setActiveTab('profile')}
+            style={{
+              padding: '10px 18px',
+              fontWeight: 600,
+              fontSize: '14px',
+              borderBottom: activeTab === 'profile' ? '3px solid var(--saffron)' : '3px solid transparent',
+              color: activeTab === 'profile' ? 'var(--primary)' : 'var(--text-muted)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            <User size={16} />
+            <span>Profile & Security</span>
+          </button>
         </div>
 
         {/* TAB 1: Saved Favorites */}
@@ -370,6 +388,79 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: Profile & Security */}
+        {activeTab === 'profile' && (
+          <div style={{ background: '#FFFFFF', borderRadius: 'var(--radius-lg)', border: '1px solid var(--border-color)', padding: 'clamp(20px, 4vw, 32px)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
+              <User size={20} color="var(--primary)" />
+              <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--primary)' }}>
+                Account Profile & Security Settings
+              </h3>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '24px' }}>
+              {/* Account Details Overview */}
+              <div style={{ background: 'var(--bg-page)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--primary)', marginBottom: '14px' }}>
+                  Account Summary
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Registered Email:</span>
+                    <strong style={{ display: 'block', color: 'var(--primary)' }}>{user?.email}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Full Name:</span>
+                    <strong style={{ display: 'block', color: 'var(--primary)' }}>{user?.name}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Registered State:</span>
+                    <strong style={{ display: 'block', color: 'var(--primary)' }}>{user?.state || 'Not Set'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>City:</span>
+                    <strong style={{ display: 'block', color: 'var(--primary)' }}>{user?.city || 'Not Set'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Phone:</span>
+                    <strong style={{ display: 'block', color: 'var(--primary)' }}>{user?.phone || 'Not Set'}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: 'var(--text-muted)' }}>Account Role:</span>
+                    <strong style={{ display: 'block', color: 'var(--saffron)' }}>{user?.role || 'Buyer'}</strong>
+                  </div>
+                  <div style={{ marginTop: '6px', paddingTop: '10px', borderTop: '1px solid var(--border-color)' }}>
+                    <Link to="/profile" className="btn btn-outline btn-sm" style={{ width: '100%', justifyContent: 'center' }}>
+                      Open Full Profile Page
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* Security info */}
+              <div style={{ background: 'var(--bg-page)', padding: '20px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border-color)' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--primary)', marginBottom: '14px' }}>
+                  Security & Compliance
+                </h4>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', color: 'var(--text-body)' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--rera-green)', fontWeight: 600 }}>
+                    <ShieldCheck size={18} />
+                    <span>Supabase Row Level Security Active</span>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                    Your password is cryptographically hashed with industry-standard bcrypt/argon2. No plaintext password is ever stored or logged.
+                  </p>
+                  <div style={{ marginTop: '8px' }}>
+                    <Link to="/forgot-password" style={{ color: 'var(--saffron)', fontSize: '13px', fontWeight: 600 }}>
+                      Change or Reset Password &rarr;
+                    </Link>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

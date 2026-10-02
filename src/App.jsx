@@ -36,6 +36,13 @@ import TermsConditionsPage from './pages/TermsConditionsPage';
 import AdminPage from './pages/AdminPage';
 import NotFoundPage from './pages/NotFoundPage';
 
+// Auth Pages & Guards
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ProfilePage from './pages/ProfilePage';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
 /**
  * Scroll to top on route navigation
  */
@@ -61,8 +68,39 @@ function AnimatedRoutes() {
         <Route path="/property/:id" element={<PropertyDetailPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/agent/:id" element={<AgentProfilePage />} />
-        <Route path="/add-property" element={<AddPropertyPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        
+        {/* Protected User Routes */}
+        <Route 
+          path="/add-property" 
+          element={
+            <ProtectedRoute>
+              <AddPropertyPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/dashboard" 
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="/profile" 
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          } 
+        />
+
+        {/* Dedicated Auth Routes */}
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+
+        {/* Public Informational Routes */}
         <Route path="/compare" element={<ComparePage />} />
         <Route path="/calculator" element={<CalculatorPage />} />
         <Route path="/blog" element={<BlogPage />} />

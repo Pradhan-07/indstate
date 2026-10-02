@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { triggerCallNotification } from '../../services/leadNotificationService';
 
 export default function TopBar() {
-  const { user, setIsAuthModalOpen, setAuthMode, logout } = useAuth();
+  const { user, isLoading, setIsAuthModalOpen, setAuthMode, logout } = useAuth();
 
   return (
     <div className="top-bar">
@@ -47,7 +47,11 @@ export default function TopBar() {
               🇮🇳 India Edition (INR ₹)
             </span>
             
-            {user ? (
+            {isLoading ? (
+              <span className="top-bar-item" style={{ opacity: 0.6, fontSize: '11px' }}>
+                Connecting...
+              </span>
+            ) : user ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <Link to="/dashboard" className="top-bar-item" style={{ fontWeight: 600 }}>
                   <User size={13} />
@@ -55,7 +59,7 @@ export default function TopBar() {
                 </Link>
                 <button
                   onClick={logout}
-                  style={{ color: '#94A3B8', fontSize: '12px', textDecoration: 'underline' }}
+                  style={{ color: '#94A3B8', fontSize: '12px', textDecoration: 'underline', background: 'none', border: 'none', cursor: 'pointer' }}
                 >
                   Logout
                 </button>
@@ -67,7 +71,7 @@ export default function TopBar() {
                   setIsAuthModalOpen(true);
                 }}
                 className="top-bar-item"
-                style={{ fontWeight: 600 }}
+                style={{ fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
               >
                 <LogIn size={13} />
                 <span>Sign In / Register</span>

@@ -10,7 +10,7 @@ import IndstateLogo from './IndstateLogo';
 
 export default function Navbar() {
   const { favorites, compareList } = useProperty();
-  const { user, setIsAuthModalOpen, setAuthMode } = useAuth();
+  const { user, isLoading, setIsAuthModalOpen, setAuthMode, logout } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [propertiesDropdown, setPropertiesDropdown] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
@@ -164,11 +164,40 @@ export default function Navbar() {
             </Link>
 
             {/* Dashboard / User */}
-            {user ? (
-              <Link to="/dashboard" className="btn btn-outline btn-sm nav-action-desktop-only">
-                <UserCheck size={16} />
-                <span>Dashboard</span>
-              </Link>
+            {isLoading ? (
+              <div 
+                className="nav-action-desktop-only" 
+                style={{ 
+                  width: '82px', 
+                  height: '36px', 
+                  borderRadius: 'var(--radius-sm)', 
+                  background: 'var(--bg-alt)', 
+                  opacity: 0.6 
+                }} 
+              />
+            ) : user ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }} className="nav-action-desktop-only">
+                <Link to="/dashboard" className="btn btn-outline btn-sm" title={`Logged in as ${user.name}`}>
+                  <UserCheck size={16} />
+                  <span>{user.name?.split(' ')[0] || 'Dashboard'}</span>
+                </Link>
+                <button
+                  onClick={logout}
+                  className="btn btn-sm"
+                  style={{ 
+                    background: 'transparent', 
+                    border: '1px solid var(--border-color)', 
+                    color: 'var(--text-muted)', 
+                    padding: '6px 12px', 
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                  title="Sign out of INDSTATE"
+                >
+                  Logout
+                </button>
+              </div>
             ) : (
               <button 
                 onClick={() => {
@@ -238,19 +267,44 @@ export default function Navbar() {
           >
             {/* User Auth in Mobile Drawer */}
             {user ? (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', background: 'var(--bg-alt)', borderRadius: '10px', marginBottom: '6px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <UserCheck size={18} color="var(--primary)" />
-                  <span style={{ fontWeight: 600, fontSize: '14px', color: 'var(--primary)' }}>{user.name || 'My Account'}</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '12px 14px', background: 'var(--bg-alt)', borderRadius: '10px', marginBottom: '6px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <UserCheck size={18} color="var(--primary)" />
+                    <div>
+                      <span style={{ fontWeight: 700, fontSize: '14px', color: 'var(--primary)', display: 'block' }}>{user.name || 'My Account'}</span>
+                      <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{user.state || 'India'} • {user.role || 'Buyer'}</span>
+                    </div>
+                  </div>
                 </div>
-                <Link 
-                  to="/dashboard" 
-                  onClick={() => setMobileMenuOpen(false)} 
-                  className="btn btn-outline btn-sm"
-                  style={{ minHeight: '36px', padding: '6px 14px' }}
-                >
-                  Dashboard
-                </Link>
+                <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                  <Link 
+                    to="/dashboard" 
+                    onClick={() => setMobileMenuOpen(false)} 
+                    className="btn btn-outline btn-sm"
+                    style={{ flex: 1, minHeight: '34px', justifyContent: 'center' }}
+                  >
+                    Dashboard
+                  </Link>
+                  <Link 
+                    to="/profile" 
+                    onClick={() => setMobileMenuOpen(false)} 
+                    className="btn btn-outline btn-sm"
+                    style={{ flex: 1, minHeight: '34px', justifyContent: 'center' }}
+                  >
+                    Profile
+                  </Link>
+                  <button 
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      logout();
+                    }}
+                    className="btn btn-sm"
+                    style={{ background: '#FEE2E2', color: '#DC2626', border: 'none', padding: '6px 12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
+                  >
+                    Logout
+                  </button>
+                </div>
               </div>
             ) : (
               <button 
