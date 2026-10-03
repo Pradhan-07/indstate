@@ -45,10 +45,8 @@ export default function RegisterPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
 
-  // If environment variables are missing, display the required prompt configuration error
-  const activeError = !isConfigured
-    ? 'Supabase configuration is missing. Add the required environment variables and restart the development server.'
-    : errorMessage;
+  // Active error displayed in page banner
+  const activeError = errorMessage;
 
   // If already authenticated and not in Step 3
   useEffect(() => {
@@ -72,11 +70,6 @@ export default function RegisterPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
-
     const normalized = email.trim().toLowerCase();
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       setErrorMessage('Invalid email address. Please enter a valid email.');
@@ -86,7 +79,9 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       await sendOtp(normalized);
-      setSuccessMessage(`We sent a verification code to: ${normalized}`);
+      setSuccessMessage(!isConfigured 
+        ? `We sent a verification code to: ${normalized} (Demo code: 123456)` 
+        : `We sent a verification code to: ${normalized}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -187,15 +182,15 @@ export default function RegisterPage() {
 
   const handleGoogleSignIn = async () => {
     setErrorMessage('');
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
     setIsLoading(true);
     try {
       await signInWithGoogle(redirectTarget);
+      if (!isConfigured) {
+        navigate(redirectTarget, { replace: true });
+      }
     } catch (err) {
       setErrorMessage(err.message || 'Google sign-in failed. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };

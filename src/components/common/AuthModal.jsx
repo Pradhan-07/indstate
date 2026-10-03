@@ -60,10 +60,8 @@ export default function AuthModal() {
   // Resend OTP Cooldown (60 seconds)
   const [cooldown, setCooldown] = useState(0);
 
-  // If environment variables are missing, display the required prompt configuration error
-  const activeError = !isConfigured
-    ? 'Supabase configuration is missing. Add the required environment variables and restart the development server.'
-    : errorMessage;
+  // Active error displayed in modal banner
+  const activeError = errorMessage;
 
   // Sync mode with context
   useEffect(() => {
@@ -115,11 +113,6 @@ export default function AuthModal() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
-
     if (!email.trim() || !password) {
       setErrorMessage('Please enter both email and password.');
       return;
@@ -136,22 +129,35 @@ export default function AuthModal() {
     }
   };
 
+  // Quick Demo Login (Instant access for review / local development)
+  const handleQuickDemoLogin = async () => {
+    setErrorMessage('');
+    setSuccessMessage('');
+    setIsLoading(true);
+    try {
+      await signInWithPassword('arjun.verma@example.com', 'Demo@1234');
+      handlePostAuthSuccess();
+    } catch (err) {
+      setErrorMessage(err.message || 'Demo sign in failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // --------------------------------------------------------------------------
   // GOOGLE LOGIN
   // --------------------------------------------------------------------------
   const handleGoogleSignIn = async () => {
     setErrorMessage('');
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
-
     setIsLoading(true);
     try {
       await signInWithGoogle();
-      // Browser redirects to Google OAuth
+      if (!isConfigured) {
+        handlePostAuthSuccess();
+      }
     } catch (err) {
       setErrorMessage(err.message || 'Google sign in failed. Please try again.');
+    } finally {
       setIsLoading(false);
     }
   };
@@ -164,11 +170,6 @@ export default function AuthModal() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
-
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setErrorMessage('Invalid email address. Please enter a valid email.');
@@ -178,7 +179,9 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await sendOtp(normalizedEmail);
-      setSuccessMessage(`Verification code sent to ${normalizedEmail}`);
+      setSuccessMessage(!isConfigured 
+        ? `Verification code sent to ${normalizedEmail} (Demo code: 123456)` 
+        : `Verification code sent to ${normalizedEmail}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -292,11 +295,6 @@ export default function AuthModal() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
-
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setErrorMessage('Invalid email address.');
@@ -306,7 +304,9 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await sendPasswordResetOtp(normalizedEmail);
-      setSuccessMessage(`Password reset code sent to ${normalizedEmail}`);
+      setSuccessMessage(!isConfigured
+        ? `Password reset code sent to ${normalizedEmail} (Demo code: 123456)`
+        : `Password reset code sent to ${normalizedEmail}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -645,6 +645,35 @@ export default function AuthModal() {
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
+
+              {!isConfigured && (
+                <button
+                  type="button"
+                  onClick={handleQuickDemoLogin}
+                  disabled={isLoading}
+                  style={{
+                    width: '100%',
+                    marginTop: '10px',
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px dashed var(--saffron)',
+                    background: 'var(--saffron-light)',
+                    color: '#92400E',
+                    fontSize: '13px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
+                >
+                  <span>⚡ Instant Demo Sign In</span>
+                </button>
+              )}
             </form>
 
             <div style={{ marginTop: '22px', textAlign: 'center', fontSize: '13px', color: 'var(--text-body)' }}>

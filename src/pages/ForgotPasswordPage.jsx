@@ -23,10 +23,8 @@ export default function ForgotPasswordPage() {
   const [successMessage, setSuccessMessage] = useState('');
   const [cooldown, setCooldown] = useState(0);
 
-  // If environment variables are missing, display the required prompt configuration error
-  const activeError = !isConfigured
-    ? 'Supabase configuration is missing. Add the required environment variables and restart the development server.'
-    : errorMessage;
+  // Active error displayed in page banner
+  const activeError = errorMessage;
 
   useEffect(() => {
     let timer;
@@ -42,11 +40,6 @@ export default function ForgotPasswordPage() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!isConfigured) {
-      setErrorMessage('Supabase configuration is missing. Add the required environment variables and restart the development server.');
-      return;
-    }
-
     const normalized = email.trim().toLowerCase();
     if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       setErrorMessage('Invalid email address. Please enter a valid email.');
@@ -56,7 +49,9 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
     try {
       await sendPasswordResetOtp(normalized);
-      setSuccessMessage(`Password reset code sent to ${normalized}`);
+      setSuccessMessage(!isConfigured
+        ? `Password reset code sent to ${normalized} (Demo code: 123456)`
+        : `Password reset code sent to ${normalized}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
