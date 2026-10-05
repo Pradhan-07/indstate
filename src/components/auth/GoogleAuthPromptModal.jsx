@@ -1,12 +1,24 @@
-import React, { useState } from 'react';
-import { MapPin, Building, ShieldCheck, AlertCircle } from 'lucide-react';
-import { INDIAN_STATES, UNION_TERRITORIES, ALL_REGIONS } from '../../data/indianStatesAndCities';
+import React, { useState, useEffect } from 'react';
+import { MapPin, Building, ShieldCheck, AlertCircle, User, Phone } from 'lucide-react';
+import { INDIAN_STATES, UNION_TERRITORIES } from '../../data/indianStatesAndCities';
 import IndstateLogo from '../common/IndstateLogo';
 
 export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading }) {
+  const [fullName, setFullName] = useState('');
   const [selectedState, setSelectedState] = useState('');
   const [city, setCity] = useState('');
+  const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
+
+  // Prefill name or phone when user session arrives
+  useEffect(() => {
+    if (user) {
+      const metaName = user.user_metadata?.full_name || user.user_metadata?.name || '';
+      const metaPhone = user.user_metadata?.phone || user.phone || '';
+      if (metaName && !fullName) setFullName(metaName);
+      if (metaPhone && !phone) setPhone(metaPhone);
+    }
+  }, [user]);
 
   if (!isOpen) return null;
 
@@ -16,14 +28,16 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    if (!selectedState) {
+    if (!selectedState || !selectedState.trim()) {
       setError('State is required. Please select your Indian State or Union Territory.');
       return;
     }
     setError('');
     onSave({
-      state: selectedState,
-      city: city.trim()
+      fullName: fullName.trim(),
+      state: selectedState.trim(),
+      city: city.trim(),
+      phone: phone.trim()
     });
   };
 
@@ -32,7 +46,7 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
       <div 
         className="modal-content" 
         onClick={e => e.stopPropagation()}
-        style={{ maxWidth: '440px', padding: '32px' }}
+        style={{ maxWidth: '460px', padding: '32px' }}
       >
         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
           <div style={{ marginBottom: '12px' }}>
@@ -42,7 +56,7 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
             Complete your INDSTATE profile
           </h3>
           <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Welcome, <strong>{user?.user_metadata?.full_name || user?.email}</strong>! Please select your primary operating state to continue.
+            Welcome, <strong>{fullName || user?.email}</strong>! Please complete your details to personalize your state-based property experience.
           </p>
         </div>
 
@@ -61,16 +75,42 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
               marginBottom: '16px'
             }}
           >
-            <AlertCircle size={16} />
+            <AlertCircle size={16} style={{ flexShrink: 0 }} />
             <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit}>
-          {/* State * (Compulsory) */}
-          <div style={{ marginBottom: '16px' }}>
+          {/* Full Name */}
+          <div style={{ marginBottom: '14px' }}>
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
-              State * <span style={{ color: '#DC2626' }}>(Compulsory)</span>
+              Full Name
+            </label>
+            <div style={{ position: 'relative' }}>
+              <input 
+                type="text"
+                placeholder="Enter your full name"
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--border-color)',
+                  fontSize: '14px',
+                  outline: 'none',
+                  transition: 'border-color 0.2s'
+                }}
+                onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+              />
+            </div>
+          </div>
+
+          {/* State * (Compulsory) */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
+              State * <span style={{ color: '#DC2626' }}>(Required)</span>
             </label>
             <div style={{ position: 'relative' }}>
               <select
@@ -83,14 +123,17 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
                 required
                 style={{
                   width: '100%',
-                  padding: '11px 14px',
+                  padding: '10px 14px',
                   borderRadius: 'var(--radius-md)',
                   border: '1.5px solid var(--border-color)',
                   background: '#FFFFFF',
                   fontSize: '14px',
                   outline: 'none',
-                  color: selectedState ? 'var(--primary)' : 'var(--text-muted)'
+                  color: selectedState ? 'var(--primary)' : 'var(--text-muted)',
+                  transition: 'border-color 0.2s'
                 }}
+                onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
+                onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
               >
                 <option value="">-- Select Indian State / UT --</option>
                 <optgroup label="States (28)">
@@ -110,37 +153,64 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
               </select>
             </div>
             <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-              Ensures relevant state RERA regulations and localized stamp duty rates.
+              Ensures verified RERA compliance and localized stamp duty details for your region.
             </p>
           </div>
 
-          {/* City (Optional) */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '6px', color: 'var(--text-main)' }}>
-              City <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
+          {/* City */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
+              City
             </label>
             <input 
               type="text"
-              list="city-suggestions"
+              list="google-city-suggestions"
               placeholder="e.g. Mumbai, Bengaluru, Pune"
               value={city}
               onChange={e => setCity(e.target.value)}
               style={{
                 width: '100%',
-                padding: '11px 14px',
+                padding: '10px 14px',
                 borderRadius: 'var(--radius-md)',
                 border: '1.5px solid var(--border-color)',
                 fontSize: '14px',
-                outline: 'none'
+                outline: 'none',
+                transition: 'border-color 0.2s'
               }}
+              onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
             />
             {citySuggestions.length > 0 && (
-              <datalist id="city-suggestions">
+              <datalist id="google-city-suggestions">
                 {citySuggestions.map(cityName => (
                   <option key={cityName} value={cityName} />
                 ))}
               </datalist>
             )}
+          </div>
+
+          {/* Phone */}
+          <div style={{ marginBottom: '22px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
+              Phone
+            </label>
+            <input 
+              type="tel"
+              placeholder="e.g. +91 98765 43210"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: '1.5px solid var(--border-color)',
+                fontSize: '14px',
+                outline: 'none',
+                transition: 'border-color 0.2s'
+              }}
+              onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
+            />
           </div>
 
           <button
@@ -156,7 +226,7 @@ export default function GoogleAuthPromptModal({ isOpen, user, onSave, isLoading 
               cursor: !selectedState ? 'not-allowed' : 'pointer'
             }}
           >
-            {isLoading ? 'Saving Profile...' : 'Continue to INDSTATE'}
+            {isLoading ? 'Saving...' : 'Continue'}
           </button>
         </form>
 

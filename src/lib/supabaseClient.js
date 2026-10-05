@@ -21,7 +21,9 @@ export const AUTH_MESSAGES = {
   CONFIG_MISSING: isDev
     ? 'Authentication configuration is missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local and restart the development server.'
     : 'Authentication configuration is missing.',
-  GOOGLE_CONFIG_MISSING: 'Google OAuth configuration is missing. Please configure Google provider in Supabase Dashboard.',
+  GOOGLE_NOT_ENABLED: 'Google sign-in is not configured yet. Please try email and password.',
+  GOOGLE_REDIRECT_INVALID: 'Google sign-in could not be completed. Please check the Google OAuth configuration.',
+  GOOGLE_NETWORK_ERROR: 'Unable to connect to the sign-in service. Please check your internet connection.',
   NETWORK_FAILURE: 'Unable to connect to the authentication service. Please check your internet connection.',
   SERVICE_UNAVAILABLE: 'The authentication service is temporarily unavailable.',
   RATE_LIMITED: 'Too many attempts. Please wait and try again.',
@@ -30,10 +32,72 @@ export const AUTH_MESSAGES = {
   USER_EXISTS: 'An account already exists with this email. Please sign in instead.',
   INVALID_EMAIL: 'Invalid email address. Please enter a valid email.',
   WEAK_PASSWORD: 'Password does not meet requirements (minimum 8 characters with uppercase, lowercase, and number).',
+  STATE_REQUIRED: 'State is required. Indian State / UT selection is compulsory.',
   UNKNOWN: 'Something went wrong. Please try again.'
 };
 
 export const CONFIG_ERROR_MESSAGE = AUTH_MESSAGES.CONFIG_MISSING;
+
+/**
+ * Classifies Google OAuth specific errors
+ * Returns null if user cancelled (so no scary error banner is displayed)
+ */
+export function classifyGoogleOAuthError(err) {
+  if (!err) return null;
+  safeLogAuthError('signInWithGoogle', err);
+
+  const raw = typeof err === 'string' ? err : err.message || '';
+  const message = raw.toLowerCase();
+
+  // User cancelled - silent return, no scary banner
+  if (
+    message.includes('access_denied') || 
+    message.includes('cancelled') || 
+    message.includes('canceled') ||
+    message.includes('user closed') ||
+    message.includes('popup closed')
+  ) {
+    return null;
+  }
+
+  // Network failure
+  if (
+    message.includes('failed to fetch') ||
+    message.includes('network') ||
+    message.includes('networkerror') ||
+    message.includes('connection refused') ||
+    message.includes('load failed') ||
+    (err?.name === 'TypeError' && message.includes('fetch'))
+  ) {
+    return AUTH_MESSAGES.GOOGLE_NETWORK_ERROR;
+  }
+
+  // Provider not enabled / configured
+  if (
+    message.includes('not configured') ||
+    message.includes('not enabled') ||
+    message.includes('unsupported provider') ||
+    message.includes('provider is not enabled') ||
+    message.includes('config_missing') ||
+    message.includes('configuration is missing') ||
+    message.includes('placeholder')
+  ) {
+    return AUTH_MESSAGES.GOOGLE_NOT_ENABLED;
+  }
+
+  // Redirect URI mismatch or OAuth config issue
+  if (
+    message.includes('redirect') ||
+    message.includes('redirect_uri') ||
+    message.includes('oauth') ||
+    message.includes('unauthorized_client') ||
+    message.includes('invalid_client')
+  ) {
+    return AUTH_MESSAGES.GOOGLE_REDIRECT_INVALID;
+  }
+
+  return AUTH_MESSAGES.GOOGLE_REDIRECT_INVALID;
+}
 
 /**
  * Safely logs operational authentication errors in development

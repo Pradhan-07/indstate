@@ -3,6 +3,7 @@ import {
   supabase, 
   isSupabaseConfigured, 
   classifyAuthError, 
+  classifyGoogleOAuthError,
   AUTH_MESSAGES, 
   safeLogAuthError,
   CONFIG_ERROR_MESSAGE 
@@ -197,6 +198,19 @@ export function AuthProvider({ children }) {
             setIsLoading(false);
           }
           return;
+        }
+
+        // Check for URL hash OAuth error or access token (e.g. from redirect)
+        if (typeof window !== 'undefined' && window.location.hash) {
+          const hash = window.location.hash;
+          if (hash.includes('error=')) {
+            const params = new URLSearchParams(hash.substring(1));
+            const errType = params.get('error') || '';
+            const errDesc = params.get('error_description') || '';
+            safeLogAuthError('OAuthRedirectHash', { code: errType, message: errDesc });
+            // Clean up the hash so it doesn't linger in the address bar
+            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+          }
         }
 
         // Restore real session from Supabase client local cache
@@ -419,13 +433,15 @@ export function AuthProvider({ children }) {
   // 5. Google Sign-In with dynamic local / production redirect
   const signInWithGoogle = async (customRedirect = null) => {
     if (!isSupabaseConfigured()) {
-      const err = new Error(AUTH_MESSAGES.GOOGLE_CONFIG_MISSING);
+      const err = new Error(AUTH_MESSAGES.GOOGLE_NOT_ENABLED);
       safeLogAuthError('signInWithGoogle', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing for Google OAuth' });
       throw err;
     }
 
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
     const target = customRedirect || redirectPath || '/dashboard';
-    const redirectUrl = `${window.location.origin}${target.startsWith('/') ? target : `/${target}`}`;
+    const cleanTarget = target.startsWith('/') ? target : `/${target}`;
+    const redirectUrl = `${origin}${cleanTarget}`;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -439,15 +455,19 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(classifyAuthError(error, 'signInWithGoogle'));
+      const classified = classifyGoogleOAuthError(error);
+      if (classified) {
+        throw new Error(classified);
+      }
+      return null;
     }
     return data;
   };
 
   // 6. Complete Profile for First-Time Google User (State is Mandatory)
-  const saveGoogleProfile = async ({ state, city }) => {
+  const saveGoogleProfile = async ({ fullName, state, city, phone }) => {
     if (!state || !state.trim()) {
-      throw new Error('State is required. Indian State / UT selection is compulsory.');
+      throw new Error(AUTH_MESSAGES.STATE_REQUIRED || 'State is required. Indian State / UT selection is compulsory.');
     }
 
     if (!isSupabaseConfigured()) {
@@ -461,9 +481,17 @@ export function AuthProvider({ children }) {
       const currentUserId = session?.user?.id;
       if (!currentUserId) throw new Error('No active session found.');
 
+      const finalName = fullName?.trim() || session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0];
+      const finalPhone = phone?.trim() || '';
+
       // Update auth user metadata
       await supabase.auth.updateUser({
-        data: { state: state.trim(), city: city?.trim() || '' }
+        data: { 
+          full_name: finalName,
+          state: state.trim(), 
+          city: city?.trim() || '',
+          phone: finalPhone 
+        }
       });
 
       // Upsert profile record
@@ -472,9 +500,10 @@ export function AuthProvider({ children }) {
         .upsert({
           user_id: currentUserId,
           email: session.user.email,
-          full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
+          full_name: finalName,
           state: state.trim(),
           city: city?.trim() || '',
+          phone: finalPhone,
           avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
           updated_at: new Date().toISOString()
         }, { onConflict: 'user_id' });
