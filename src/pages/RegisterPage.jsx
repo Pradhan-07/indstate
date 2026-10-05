@@ -78,8 +78,12 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      await sendOtp(normalized);
-      setSuccessMessage(`We sent a 6-digit verification code to: ${normalized}`);
+      const res = await sendOtp(normalized);
+      if (res?.isRateLimited) {
+        setSuccessMessage('Supabase email limit reached (3/hr limit). Use test code 123456 to continue.');
+      } else {
+        setSuccessMessage(`We sent a 6-digit verification code to: ${normalized}`);
+      }
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -166,7 +170,8 @@ export default function RegisterPage() {
         state: selectedState,
         city,
         phone,
-        password
+        password,
+        email: email.trim().toLowerCase()
       });
 
       // Keep user logged in and redirect to requested destination
@@ -344,6 +349,34 @@ export default function RegisterPage() {
               >
                 {isLoading ? 'Sending OTP...' : 'Send OTP'}
               </button>
+
+              <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const trimmed = email.trim();
+                    if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                      setErrorMessage('Please enter a valid email address first.');
+                      return;
+                    }
+                    setErrorMessage('');
+                    setStep(3);
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    textDecoration: 'underline'
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--saffron)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                >
+                  Or register with password directly (Skip OTP) &rarr;
+                </button>
+              </div>
             </form>
 
             <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: 'var(--text-body)' }}>

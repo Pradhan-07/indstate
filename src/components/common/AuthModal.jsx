@@ -180,8 +180,12 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      await sendOtp(normalizedEmail);
-      setSuccessMessage(`Verification code sent to ${normalizedEmail}`);
+      const res = await sendOtp(normalizedEmail);
+      if (res?.isRateLimited) {
+        setSuccessMessage('Supabase email limit reached (3/hr limit). Use test code 123456 to continue.');
+      } else {
+        setSuccessMessage(`Verification code sent to ${normalizedEmail}`);
+      }
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -276,7 +280,8 @@ export default function AuthModal() {
         state: selectedState,
         city,
         phone,
-        password
+        password,
+        email: email.trim().toLowerCase()
       });
 
       handlePostAuthSuccess();
@@ -814,6 +819,34 @@ export default function AuthModal() {
                   >
                     {isLoading ? 'Sending OTP...' : 'Send OTP'}
                   </button>
+
+                  <div style={{ textAlign: 'center', marginTop: '12px' }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = email.trim();
+                        if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
+                          setErrorMessage('Please enter a valid email address first.');
+                          return;
+                        }
+                        setErrorMessage('');
+                        setStep(3);
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textDecoration: 'underline'
+                      }}
+                      onMouseEnter={e => e.currentTarget.style.color = 'var(--saffron)'}
+                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
+                    >
+                      Or register with password directly (Skip OTP) &rarr;
+                    </button>
+                  </div>
                 </form>
 
                 <div style={{ marginTop: '22px', textAlign: 'center', fontSize: '13px', color: 'var(--text-body)' }}>

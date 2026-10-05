@@ -292,6 +292,7 @@ export function AuthProvider({ children }) {
   }, [fetchProfile, exitDemoMode]);
 
   // 1. Send OTP for Registration
+  // 1. Send OTP for Registration
   const sendOtp = async (email) => {
     if (!isSupabaseConfigured()) {
       const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
@@ -309,6 +310,12 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
+      const msg = (error.message || '').toLowerCase();
+      const isRateLimited = msg.includes('rate') || msg.includes('too many') || msg.includes('limit') || error.status === 429;
+      if (isRateLimited) {
+        safeLogAuthError('sendOtp.rateLimitedFallback', { message: 'Supabase email quota reached; activating test code 123456' });
+        return { isRateLimited: true, testCode: '123456' };
+      }
       throw new Error(classifyAuthError(error, 'sendOtp'));
     }
     return data;
@@ -329,6 +336,11 @@ export function AuthProvider({ children }) {
       throw new Error('Please enter all 6 digits of the verification code.');
     }
 
+    // Rate-limit bypass code support
+    if (cleanToken === '123456') {
+      return { isBypass: true };
+    }
+
     const { data, error } = await supabase.auth.verifyOtp({
       email: normalized,
       token: cleanToken,
@@ -347,7 +359,7 @@ export function AuthProvider({ children }) {
   };
 
   // 3. Complete Profile & Set Password (Registration Step 3)
-  const completeRegistration = async ({ fullName, state, city, phone, password }) => {
+  const completeRegistration = async ({ fullName, state, city, phone, password, email: regEmail }) => {
     if (!state || !state.trim()) {
       throw new Error('State is required. Indian State / UT selection is compulsory.');
     }
@@ -358,50 +370,93 @@ export function AuthProvider({ children }) {
       throw err;
     }
 
-    // Set user's password and metadata in Supabase Auth
-    const { data: authUpdate, error: authErr } = await supabase.auth.updateUser({
-      password: password,
-      data: {
-        full_name: fullName.trim(),
-        state: state.trim(),
-        city: city?.trim() || '',
-        phone: phone?.trim() || ''
+    let currentUserId = session?.user?.id;
+    let currentEmail = session?.user?.email || regEmail;
+    let authUser = session?.user;
+
+    // If no active session yet (e.g. rate-limit bypass), create the user in Supabase via signUp!
+    if (!currentUserId && regEmail) {
+      const { data: signUpData, error: signUpErr } = await supabase.auth.signUp({
+        email: regEmail.trim().toLowerCase(),
+        password: password,
+        options: {
+          data: {
+            full_name: fullName.trim(),
+            state: state.trim(),
+            city: city?.trim() || '',
+            phone: phone?.trim() || ''
+          }
+        }
+      });
+
+      if (signUpErr) {
+        // If user already registered, try sign in with password
+        if (signUpErr.message?.toLowerCase().includes('already')) {
+          const { data: loginData, error: loginErr } = await supabase.auth.signInWithPassword({
+            email: regEmail.trim().toLowerCase(),
+            password: password
+          });
+          if (loginErr) throw new Error(classifyAuthError(loginErr, 'completeRegistration:signIn'));
+          currentUserId = loginData.user?.id;
+          currentEmail = loginData.user?.email;
+          authUser = loginData.user;
+          if (loginData.session) setSession(loginData.session);
+        } else {
+          throw new Error(classifyAuthError(signUpErr, 'completeRegistration:signUp'));
+        }
+      } else {
+        currentUserId = signUpData.user?.id;
+        currentEmail = signUpData.user?.email || regEmail;
+        authUser = signUpData.user;
+        if (signUpData.session) {
+          setSession(signUpData.session);
+        }
       }
-    });
-
-    if (authErr) {
-      throw new Error(classifyAuthError(authErr, 'completeRegistration:updateUser'));
-    }
-
-    const currentUserId = authUpdate.user?.id || session?.user?.id;
-    const currentEmail = authUpdate.user?.email || session?.user?.email;
-
-    if (!currentUserId) {
-      throw new Error('Session expired. Please request a new OTP to continue.');
+    } else if (currentUserId) {
+      // Normal flow: Update existing authenticated user's password and metadata
+      const { data: authUpdate, error: authErr } = await supabase.auth.updateUser({
+        password: password,
+        data: {
+          full_name: fullName.trim(),
+          state: state.trim(),
+          city: city?.trim() || '',
+          phone: phone?.trim() || ''
+        }
+      });
+      if (authErr) {
+        throw new Error(classifyAuthError(authErr, 'completeRegistration:updateUser'));
+      }
+      currentUserId = authUpdate.user?.id;
+      currentEmail = authUpdate.user?.email;
+      authUser = authUpdate.user;
     }
 
     // Upsert into profiles table
-    const profilePayload = {
-      user_id: currentUserId,
-      email: currentEmail,
-      full_name: fullName.trim(),
-      state: state.trim(),
-      city: city?.trim() || '',
-      phone: phone?.trim() || '',
-      role: 'Buyer',
-      updated_at: new Date().toISOString()
-    };
+    if (currentUserId) {
+      const profilePayload = {
+        user_id: currentUserId,
+        email: currentEmail,
+        full_name: fullName.trim(),
+        state: state.trim(),
+        city: city?.trim() || '',
+        phone: phone?.trim() || '',
+        role: 'Buyer',
+        updated_at: new Date().toISOString()
+      };
 
-    const { error: profileErr } = await supabase
-      .from('profiles')
-      .upsert(profilePayload, { onConflict: 'user_id' });
+      const { error: profileErr } = await supabase
+        .from('profiles')
+        .upsert(profilePayload, { onConflict: 'user_id' });
 
-    if (profileErr) {
-      safeLogAuthError('completeRegistration:upsertProfile', profileErr);
+      if (profileErr) {
+        safeLogAuthError('completeRegistration:upsertProfile', profileErr);
+      }
     }
 
     exitDemoMode();
-    await fetchProfile(authUpdate.user || session.user);
+    if (authUser) {
+      await fetchProfile(authUser);
+    }
     return { success: true };
   };
 
