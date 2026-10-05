@@ -27,7 +27,8 @@ export default function AuthModal() {
     resetPassword,
     redirectPath,
     setRedirectPath,
-    isConfigured
+    isConfigured,
+    enterInstantDemo
   } = useAuth();
 
   const navigate = useNavigate();
@@ -129,7 +130,15 @@ export default function AuthModal() {
     }
   };
 
-  // Quick Demo Login (Instant access for review / local development)
+  // --------------------------------------------------------------------------
+  // INSTANT DEMO (Explore website instantly without credentials)
+  // --------------------------------------------------------------------------
+  const handleInstantDemo = () => {
+    setErrorMessage('');
+    enterInstantDemo();
+    handlePostAuthSuccess();
+  };
+
   // --------------------------------------------------------------------------
   // GOOGLE LOGIN
   // --------------------------------------------------------------------------
@@ -623,6 +632,35 @@ export default function AuthModal() {
                 style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700 }}
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
+              </button>
+
+              {/* Instant Demo Option */}
+              <button
+                type="button"
+                onClick={handleInstantDemo}
+                disabled={isLoading}
+                style={{
+                  width: '100%',
+                  marginTop: '10px',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px dashed var(--saffron)',
+                  background: 'var(--saffron-light)',
+                  color: '#92400E',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
+                onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
+              >
+                <Sparkles size={15} />
+                <span>⚡ Instant Demo (Explore without sign in)</span>
               </button>
             </form>
 

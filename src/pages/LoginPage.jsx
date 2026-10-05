@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, ShieldCheck } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import IndstateLogo from '../components/common/IndstateLogo';
 
 export default function LoginPage() {
-  const { signInWithPassword, signInWithGoogle, isAuthenticated, isConfigured } = useAuth();
+  const { signInWithPassword, signInWithGoogle, isAuthenticated, isConfigured, enterInstantDemo } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTarget = searchParams.get('redirect') || '/dashboard';
@@ -56,6 +56,11 @@ export default function LoginPage() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleInstantDemo = () => {
+    enterInstantDemo();
+    navigate(redirectTarget, { replace: true });
   };
 
   return (
@@ -230,6 +235,35 @@ export default function LoginPage() {
             style={{ width: '100%', padding: '13px', fontSize: '15px', fontWeight: 700 }}
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
+          </button>
+
+          {/* Instant Demo Option */}
+          <button
+            type="button"
+            onClick={handleInstantDemo}
+            disabled={isLoading}
+            style={{
+              width: '100%',
+              marginTop: '12px',
+              padding: '11px 14px',
+              borderRadius: 'var(--radius-md)',
+              border: '1.5px dashed var(--saffron)',
+              background: 'var(--saffron-light)',
+              color: '#92400E',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
+            onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
+          >
+            <Sparkles size={16} />
+            <span>⚡ Instant Demo (Explore without sign in)</span>
           </button>
         </form>
 

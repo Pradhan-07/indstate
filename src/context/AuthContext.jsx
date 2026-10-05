@@ -1,45 +1,35 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { supabase, isSupabaseConfigured, CONFIG_ERROR_MESSAGE } from '../lib/supabaseClient';
+import { 
+  supabase, 
+  isSupabaseConfigured, 
+  classifyAuthError, 
+  AUTH_MESSAGES, 
+  safeLogAuthError,
+  CONFIG_ERROR_MESSAGE 
+} from '../lib/supabaseClient';
 import GoogleAuthPromptModal from '../components/auth/GoogleAuthPromptModal';
 
 const AuthContext = createContext(null);
 
+export const DEMO_USER = {
+  id: 'indstate-demo-visitor',
+  email: 'demo@indstate.in',
+  name: 'Demo Visitor',
+  full_name: 'Demo Visitor',
+  phone: '+91 98765 43210',
+  role: 'Buyer',
+  state: 'Maharashtra',
+  city: 'Mumbai',
+  isDemo: true,
+  avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=DemoVisitor&backgroundColor=0F1B3D&textColor=FFFFFF',
+  createdAt: '2026-10-01T00:00:00.000Z'
+};
+
 /**
  * Map raw provider errors to friendly user-facing messages
  */
-function sanitizeAuthError(err) {
-  if (!err) return '';
-  const raw = typeof err === 'string' ? err : err.message || '';
-  const message = raw.toLowerCase();
-
-  if (message.includes('supabase configuration is missing') || message.includes('configuration is missing')) {
-    return CONFIG_ERROR_MESSAGE;
-  }
-  if (message.includes('invalid login credentials') || message.includes('invalid credentials')) {
-    return 'Incorrect email or password. Please verify and try again.';
-  }
-  if (message.includes('token has expired') || message.includes('otp expired') || message.includes('expired')) {
-    return 'Verification code expired. Please request a new OTP.';
-  }
-  if (message.includes('token is invalid') || message.includes('invalid token') || message.includes('bad code')) {
-    return 'Invalid verification code. Please check and try again.';
-  }
-  if (message.includes('over_email_send_rate_limit') || message.includes('rate limit') || message.includes('too many')) {
-    return 'Too many OTP requests. Please wait a moment before trying again.';
-  }
-  if (message.includes('user already registered') || message.includes('already exists')) {
-    return 'An account already exists with this email. Please sign in instead.';
-  }
-  if (message.includes('email address') || message.includes('invalid email')) {
-    return 'Invalid email address. Please enter a valid email.';
-  }
-  if (message.includes('password should be') || message.includes('password does not meet')) {
-    return 'Password does not meet requirements (minimum 8 characters with uppercase, lowercase, and number).';
-  }
-  if (message.includes('fetch') || message.includes('network') || message.includes('connection')) {
-    return 'Unable to connect to authentication server. Please check your internet connection.';
-  }
-  return raw || 'Authentication request failed. Please try again.';
+function sanitizeAuthError(err, operation = 'auth') {
+  return classifyAuthError(err, operation);
 }
 
 export function AuthProvider({ children }) {
@@ -52,6 +42,42 @@ export function AuthProvider({ children }) {
   const [redirectPath, setRedirectPath] = useState(null);
   const [needsProfileCompletion, setNeedsProfileCompletion] = useState(false);
   const [isSavingGoogleProfile, setIsSavingGoogleProfile] = useState(false);
+
+  // Dedicated Demo Mode state (clearly separated from real Supabase authentication)
+  const [isDemoMode, setIsDemoMode] = useState(() => {
+    try {
+      return typeof window !== 'undefined' && sessionStorage.getItem('indstate_is_demo_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const enterInstantDemo = useCallback(() => {
+    setIsDemoMode(true);
+    setUser(DEMO_USER);
+    setProfile(DEMO_USER);
+    setNeedsProfileCompletion(false);
+    setIsAuthModalOpen(false);
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('indstate_is_demo_mode', 'true');
+      }
+    } catch {
+      // ignore
+    }
+    return DEMO_USER;
+  }, []);
+
+  const exitDemoMode = useCallback(() => {
+    setIsDemoMode(false);
+    try {
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('indstate_is_demo_mode');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Load user profile from Supabase profiles table
   const fetchProfile = useCallback(async (authUser) => {
@@ -85,7 +111,7 @@ export function AuthProvider({ children }) {
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        console.warn('[AuthContext] Profile lookup warning:', error.message);
+        safeLogAuthError('fetchProfile', error);
       }
 
       const userProfile = data || {
@@ -126,7 +152,7 @@ export function AuthProvider({ children }) {
 
       return unifiedUser;
     } catch (err) {
-      console.warn('[AuthContext] Error in fetchProfile:', err);
+      safeLogAuthError('fetchProfile:catch', err);
       const fallbackUser = {
         id: authUser.id,
         email: authUser.email,
@@ -150,9 +176,24 @@ export function AuthProvider({ children }) {
     const initAuth = async () => {
       try {
         if (!isSupabaseConfigured()) {
+          // If Supabase is unconfigured, check if demo mode was activated in this session
+          let demoActive = false;
+          try {
+            demoActive = typeof window !== 'undefined' && sessionStorage.getItem('indstate_is_demo_mode') === 'true';
+          } catch {
+            demoActive = false;
+          }
+
           if (isMounted) {
-            setUser(null);
-            setSession(null);
+            if (demoActive) {
+              setIsDemoMode(true);
+              setUser(DEMO_USER);
+              setProfile(DEMO_USER);
+            } else {
+              setUser(null);
+              setSession(null);
+              setProfile(null);
+            }
             setIsLoading(false);
           }
           return;
@@ -161,19 +202,32 @@ export function AuthProvider({ children }) {
         // Restore real session from Supabase client local cache
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         if (error) {
-          console.warn('[AuthContext] getSession warning:', error.message);
+          safeLogAuthError('getSession', error);
         }
 
         if (initialSession?.user && isMounted) {
+          exitDemoMode();
           setSession(initialSession);
           await fetchProfile(initialSession.user);
         } else if (isMounted) {
-          setSession(null);
-          setUser(null);
-          setProfile(null);
+          let demoActive = false;
+          try {
+            demoActive = typeof window !== 'undefined' && sessionStorage.getItem('indstate_is_demo_mode') === 'true';
+          } catch {
+            demoActive = false;
+          }
+          if (demoActive) {
+            setIsDemoMode(true);
+            setUser(DEMO_USER);
+            setProfile(DEMO_USER);
+          } else {
+            setSession(null);
+            setUser(null);
+            setProfile(null);
+          }
         }
       } catch (err) {
-        console.warn('[AuthContext] Boot error:', err);
+        safeLogAuthError('initAuth', err);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -190,11 +244,24 @@ export function AuthProvider({ children }) {
         setSession(newSession);
 
         if (newSession?.user) {
+          exitDemoMode();
           await fetchProfile(newSession.user);
         } else {
-          setUser(null);
-          setProfile(null);
-          setNeedsProfileCompletion(false);
+          let demoActive = false;
+          try {
+            demoActive = typeof window !== 'undefined' && sessionStorage.getItem('indstate_is_demo_mode') === 'true';
+          } catch {
+            demoActive = false;
+          }
+          if (demoActive) {
+            setIsDemoMode(true);
+            setUser(DEMO_USER);
+            setProfile(DEMO_USER);
+          } else {
+            setUser(null);
+            setProfile(null);
+            setNeedsProfileCompletion(false);
+          }
         }
         setIsLoading(false);
       });
@@ -208,12 +275,14 @@ export function AuthProvider({ children }) {
         isMounted = false;
       };
     }
-  }, [fetchProfile]);
+  }, [fetchProfile, exitDemoMode]);
 
   // 1. Send OTP for Registration
   const sendOtp = async (email) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('sendOtp', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     const normalized = email.trim().toLowerCase();
@@ -226,7 +295,7 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'sendOtp'));
     }
     return data;
   };
@@ -234,7 +303,9 @@ export function AuthProvider({ children }) {
   // 2. Verify OTP (Registration Flow Step 2)
   const verifyOtp = async (email, token) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('verifyOtp', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     const normalized = email.trim().toLowerCase();
@@ -251,10 +322,11 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'verifyOtp'));
     }
 
     if (data.session) {
+      exitDemoMode();
       setSession(data.session);
     }
     return data;
@@ -267,7 +339,9 @@ export function AuthProvider({ children }) {
     }
 
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('completeRegistration', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     // Set user's password and metadata in Supabase Auth
@@ -282,7 +356,7 @@ export function AuthProvider({ children }) {
     });
 
     if (authErr) {
-      throw new Error(sanitizeAuthError(authErr));
+      throw new Error(classifyAuthError(authErr, 'completeRegistration:updateUser'));
     }
 
     const currentUserId = authUpdate.user?.id || session?.user?.id;
@@ -309,9 +383,10 @@ export function AuthProvider({ children }) {
       .upsert(profilePayload, { onConflict: 'user_id' });
 
     if (profileErr) {
-      console.warn('[AuthContext] Profile upsert warning:', profileErr.message);
+      safeLogAuthError('completeRegistration:upsertProfile', profileErr);
     }
 
+    exitDemoMode();
     await fetchProfile(authUpdate.user || session.user);
     return { success: true };
   };
@@ -319,7 +394,9 @@ export function AuthProvider({ children }) {
   // 4. Existing User Login (Email + Password)
   const signInWithPassword = async (email, password) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('signInWithPassword', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     const cleanEmail = email.trim().toLowerCase();
@@ -330,9 +407,10 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'signInWithPassword'));
     }
 
+    exitDemoMode();
     setSession(data.session);
     await fetchProfile(data.user);
     return data;
@@ -341,7 +419,9 @@ export function AuthProvider({ children }) {
   // 5. Google Sign-In with dynamic local / production redirect
   const signInWithGoogle = async (customRedirect = null) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.GOOGLE_CONFIG_MISSING);
+      safeLogAuthError('signInWithGoogle', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing for Google OAuth' });
+      throw err;
     }
 
     const target = customRedirect || redirectPath || '/dashboard';
@@ -359,7 +439,7 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'signInWithGoogle'));
     }
     return data;
   };
@@ -371,7 +451,9 @@ export function AuthProvider({ children }) {
     }
 
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('saveGoogleProfile', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     setIsSavingGoogleProfile(true);
@@ -398,9 +480,10 @@ export function AuthProvider({ children }) {
         }, { onConflict: 'user_id' });
 
       setNeedsProfileCompletion(false);
+      exitDemoMode();
       await fetchProfile(session.user);
     } catch (err) {
-      throw new Error(sanitizeAuthError(err));
+      throw new Error(classifyAuthError(err, 'saveGoogleProfile'));
     } finally {
       setIsSavingGoogleProfile(false);
     }
@@ -409,14 +492,16 @@ export function AuthProvider({ children }) {
   // 7. Forgot Password: Send OTP / Password Reset Email
   const sendPasswordResetOtp = async (email) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('sendPasswordResetOtp', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     const normalized = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.resetPasswordForEmail(normalized);
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'sendPasswordResetOtp'));
     }
     return data;
   };
@@ -424,7 +509,9 @@ export function AuthProvider({ children }) {
   // 8. Forgot Password: Verify OTP
   const verifyPasswordResetOtp = async (email, token) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('verifyPasswordResetOtp', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     const normalized = email.trim().toLowerCase();
@@ -441,10 +528,11 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'verifyPasswordResetOtp'));
     }
 
     if (data.session) {
+      exitDemoMode();
       setSession(data.session);
     }
     return data;
@@ -453,7 +541,9 @@ export function AuthProvider({ children }) {
   // 9. Reset Password: Update to new password
   const resetPassword = async (newPassword) => {
     if (!isSupabaseConfigured()) {
-      throw new Error(CONFIG_ERROR_MESSAGE);
+      const err = new Error(AUTH_MESSAGES.CONFIG_MISSING);
+      safeLogAuthError('resetPassword', { code: 'CONFIG_MISSING', message: 'Supabase credentials missing' });
+      throw err;
     }
 
     const { data, error } = await supabase.auth.updateUser({
@@ -461,7 +551,7 @@ export function AuthProvider({ children }) {
     });
 
     if (error) {
-      throw new Error(sanitizeAuthError(error));
+      throw new Error(classifyAuthError(error, 'resetPassword'));
     }
     return data;
   };
@@ -488,7 +578,7 @@ export function AuthProvider({ children }) {
         .maybeSingle();
 
       if (error) {
-        throw new Error(sanitizeAuthError(error));
+        throw new Error(classifyAuthError(error, 'updateProfile'));
       }
 
       await fetchProfile(session.user);
@@ -523,9 +613,10 @@ export function AuthProvider({ children }) {
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
       }
-    } catch {
-      // ignore network errors on signout
+    } catch (err) {
+      safeLogAuthError('signOut', err);
     }
+    exitDemoMode();
     setSession(null);
     setUser(null);
     setProfile(null);
@@ -550,7 +641,10 @@ export function AuthProvider({ children }) {
         session,
         user,
         profile,
-        isAuthenticated: Boolean(user && session),
+        isAuthenticated: Boolean((user && session) || (user && isDemoMode)),
+        isDemoMode,
+        enterInstantDemo,
+        exitDemoMode,
         isLoading,
         isConfigured: isSupabaseConfigured(),
         isAuthModalOpen,

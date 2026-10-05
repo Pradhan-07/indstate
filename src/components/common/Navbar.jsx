@@ -180,6 +180,21 @@ export default function Navbar() {
                 <Link to="/dashboard" className="btn btn-outline btn-sm" title={`Logged in as ${user.name}`}>
                   <UserCheck size={16} />
                   <span>{user.name?.split(' ')[0] || 'Dashboard'}</span>
+                  {user.isDemo && (
+                    <span 
+                      style={{ 
+                        fontSize: '10px', 
+                        background: '#FEF3C7', 
+                        color: '#92400E', 
+                        padding: '1px 5px', 
+                        borderRadius: '4px', 
+                        fontWeight: 700, 
+                        marginLeft: '4px'
+                      }}
+                    >
+                      DEMO
+                    </span>
+                  )}
                 </Link>
                 <button
                   onClick={logout}
