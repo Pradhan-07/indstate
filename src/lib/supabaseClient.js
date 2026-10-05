@@ -10,8 +10,13 @@ const getEnvVar = (key) => {
   return '';
 };
 
-const supabaseUrl = getEnvVar('VITE_SUPABASE_URL');
-const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY');
+// Supabase Project: Pradhan-07's Project (oambnghhbghpwtezhxny)
+// Public client configuration for both local development and Vercel production
+const DEFAULT_SUPABASE_URL = 'https://oambnghhbghpwtezhxny.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hbWJuZ2hoYmdocHd0ZXpoeG55Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTExODk2NzUsImV4cCI6MjEwNjc2NTY3NX0.b5OVl1I9OA1lb0QRahp4fobdnbETChtwWaLaiEM_rZI';
+
+const supabaseUrl = getEnvVar('VITE_SUPABASE_URL') || DEFAULT_SUPABASE_URL;
+const supabaseAnonKey = getEnvVar('VITE_SUPABASE_ANON_KEY') || DEFAULT_SUPABASE_ANON_KEY;
 
 export const isDev = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV) || 
                      (typeof process !== 'undefined' && process.env && process.env.NODE_ENV !== 'production');
