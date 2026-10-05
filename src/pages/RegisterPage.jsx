@@ -79,9 +79,7 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       await sendOtp(normalized);
-      setSuccessMessage(!isConfigured 
-        ? `We sent a verification code to: ${normalized} (Demo code: 123456)` 
-        : `We sent a verification code to: ${normalized}`);
+      setSuccessMessage(`We sent a 6-digit verification code to: ${normalized}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -185,9 +183,6 @@ export default function RegisterPage() {
     setIsLoading(true);
     try {
       await signInWithGoogle(redirectTarget);
-      if (!isConfigured) {
-        navigate(redirectTarget, { replace: true });
-      }
     } catch (err) {
       setErrorMessage(err.message || 'Google sign-in failed. Please try again.');
     } finally {

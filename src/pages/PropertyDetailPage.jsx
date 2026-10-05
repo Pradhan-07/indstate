@@ -15,15 +15,49 @@ import { ShieldCheck, ArrowLeft, Building2 } from 'lucide-react';
 
 export default function PropertyDetailPage() {
   const { id } = useParams();
-  const { properties } = useProperty();
+  const { properties, getPropertyById } = useProperty();
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
+  const [property, setProperty] = useState(() => properties.find(p => String(p.id) === String(id)));
+  const [isDetailLoading, setIsDetailLoading] = useState(!property);
 
   // Scroll to top on id change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [id]);
 
-  const property = properties.find(p => p.id === id) || properties[0];
+  useEffect(() => {
+    let isMounted = true;
+    const loadDetail = async () => {
+      const match = properties.find(p => String(p.id) === String(id));
+      if (match) {
+        setProperty(match);
+        setIsDetailLoading(false);
+        return;
+      }
+      setIsDetailLoading(true);
+      try {
+        const fetched = await getPropertyById(id);
+        if (isMounted) {
+          setProperty(fetched || properties[0]);
+        }
+      } catch (err) {
+        console.warn('Error loading property detail:', err);
+      } finally {
+        if (isMounted) setIsDetailLoading(false);
+      }
+    };
+    loadDetail();
+    return () => { isMounted = false; };
+  }, [id, properties, getPropertyById]);
+
+  if (isDetailLoading) {
+    return (
+      <div className="container" style={{ padding: '120px 0', textAlign: 'center' }}>
+        <div style={{ width: '48px', height: '48px', border: '3px solid var(--border-color)', borderTopColor: 'var(--saffron)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 16px auto' }} />
+        <p style={{ color: 'var(--text-muted)' }}>Loading verified property details...</p>
+      </div>
+    );
+  }
 
   if (!property) {
     return (

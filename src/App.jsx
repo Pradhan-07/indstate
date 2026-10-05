@@ -135,8 +135,8 @@ export default function App() {
       )}
 
       <ScrollToTop />
-      <PropertyProvider>
-        <AuthProvider>
+      <AuthProvider>
+        <PropertyProvider>
           <ChatbotProvider>
             {isReadyForContent && (
               <div className="app-shell" style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
@@ -160,8 +160,8 @@ export default function App() {
             </div>
             )}
           </ChatbotProvider>
-        </AuthProvider>
-      </PropertyProvider>
+        </PropertyProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

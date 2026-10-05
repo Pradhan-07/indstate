@@ -22,8 +22,11 @@ export default function DashboardPage() {
   // Favorite properties
   const favoriteProperties = properties.filter(p => favorites.includes(p.id));
 
-  // User's own submitted properties (mocked or added)
-  const myProperties = properties.filter(p => p.agent?.name === user?.name || p.id.includes(user?.city?.substring(0,2).toUpperCase() || 'MH'));
+  // User's own submitted properties in Supabase
+  const myProperties = properties.filter(p => 
+    (user?.id && (p.owner_id === user.id || p.ownerId === user.id)) || 
+    (user?.name && p.agent?.name === user.name)
+  );
 
   return (
     <div style={{ padding: '40px 0 80px 0', background: 'var(--bg-page)' }}>
@@ -339,7 +342,19 @@ export default function DashboardPage() {
               </Link>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {myProperties.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 20px', background: 'var(--bg-page)', borderRadius: 'var(--radius-md)', border: '1px dashed var(--border-color)' }}>
+                <Building2 size={40} color="var(--text-muted)" style={{ margin: '0 auto 12px auto' }} />
+                <h4 style={{ fontSize: '16px', color: 'var(--primary)', marginBottom: '6px' }}>No Properties Listed Yet</h4>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '16px', maxWidth: '400px', margin: '0 auto 16px auto' }}>
+                  Post your apartment, villa, commercial space, or plot across India with genuine RERA verification.
+                </p>
+                <Link to="/add-property" className="btn btn-primary btn-sm">
+                  + Post Your First Property
+                </Link>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {myProperties.map(prop => (
                 <div 
                   key={prop.id}
@@ -389,6 +404,7 @@ export default function DashboardPage() {
                 </div>
               ))}
             </div>
+            )}
           </div>
         )}
 

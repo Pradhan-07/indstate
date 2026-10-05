@@ -130,20 +130,6 @@ export default function AuthModal() {
   };
 
   // Quick Demo Login (Instant access for review / local development)
-  const handleQuickDemoLogin = async () => {
-    setErrorMessage('');
-    setSuccessMessage('');
-    setIsLoading(true);
-    try {
-      await signInWithPassword('arjun.verma@example.com', 'Demo@1234');
-      handlePostAuthSuccess();
-    } catch (err) {
-      setErrorMessage(err.message || 'Demo sign in failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   // --------------------------------------------------------------------------
   // GOOGLE LOGIN
   // --------------------------------------------------------------------------
@@ -152,9 +138,6 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await signInWithGoogle();
-      if (!isConfigured) {
-        handlePostAuthSuccess();
-      }
     } catch (err) {
       setErrorMessage(err.message || 'Google sign in failed. Please try again.');
     } finally {
@@ -179,9 +162,7 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await sendOtp(normalizedEmail);
-      setSuccessMessage(!isConfigured 
-        ? `Verification code sent to ${normalizedEmail} (Demo code: 123456)` 
-        : `Verification code sent to ${normalizedEmail}`);
+      setSuccessMessage(`Verification code sent to ${normalizedEmail}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -304,9 +285,7 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await sendPasswordResetOtp(normalizedEmail);
-      setSuccessMessage(!isConfigured
-        ? `Password reset code sent to ${normalizedEmail} (Demo code: 123456)`
-        : `Password reset code sent to ${normalizedEmail}`);
+      setSuccessMessage(`Password reset code sent to ${normalizedEmail}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
@@ -645,35 +624,6 @@ export default function AuthModal() {
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
-
-              {!isConfigured && (
-                <button
-                  type="button"
-                  onClick={handleQuickDemoLogin}
-                  disabled={isLoading}
-                  style={{
-                    width: '100%',
-                    marginTop: '10px',
-                    padding: '10px 14px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px dashed var(--saffron)',
-                    background: 'var(--saffron-light)',
-                    color: '#92400E',
-                    fontSize: '13px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
-                  onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
-                >
-                  <span>⚡ Instant Demo Sign In</span>
-                </button>
-              )}
             </form>
 
             <div style={{ marginTop: '22px', textAlign: 'center', fontSize: '13px', color: 'var(--text-body)' }}>

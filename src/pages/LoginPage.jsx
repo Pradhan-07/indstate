@@ -46,27 +46,11 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickDemoLogin = async () => {
-    setErrorMessage('');
-    setIsLoading(true);
-    try {
-      await signInWithPassword('arjun.verma@example.com', 'Demo@1234');
-      navigate(redirectTarget, { replace: true });
-    } catch (err) {
-      setErrorMessage(err.message || 'Demo sign-in failed.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleGoogleSignIn = async () => {
     setErrorMessage('');
     setIsLoading(true);
     try {
       await signInWithGoogle(redirectTarget);
-      if (!isConfigured) {
-        navigate(redirectTarget, { replace: true });
-      }
     } catch (err) {
       setErrorMessage(err.message || 'Google sign-in failed. Please try again.');
     } finally {
@@ -247,35 +231,6 @@ export default function LoginPage() {
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
-
-          {!isConfigured && (
-            <button
-              type="button"
-              onClick={handleQuickDemoLogin}
-              disabled={isLoading}
-              style={{
-                width: '100%',
-                marginTop: '10px',
-                padding: '11px 14px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px dashed var(--saffron)',
-                background: 'var(--saffron-light)',
-                color: '#92400E',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                transition: 'all 0.2s ease'
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
-            >
-              <span>⚡ Instant Demo Sign In</span>
-            </button>
-          )}
         </form>
 
         <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: 'var(--text-body)' }}>

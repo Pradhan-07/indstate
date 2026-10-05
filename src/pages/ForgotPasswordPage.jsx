@@ -49,9 +49,7 @@ export default function ForgotPasswordPage() {
     setIsLoading(true);
     try {
       await sendPasswordResetOtp(normalized);
-      setSuccessMessage(!isConfigured
-        ? `Password reset code sent to ${normalized} (Demo code: 123456)`
-        : `Password reset code sent to ${normalized}`);
+      setSuccessMessage(`Password reset code sent to ${normalized}`);
       setStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);

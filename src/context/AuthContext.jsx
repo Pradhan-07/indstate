@@ -39,7 +39,7 @@ function sanitizeAuthError(err) {
   if (message.includes('fetch') || message.includes('network') || message.includes('connection')) {
     return 'Unable to connect to authentication server. Please check your internet connection.';
   }
-  return 'Something went wrong. Please try again.';
+  return raw || 'Authentication request failed. Please try again.';
 }
 
 export function AuthProvider({ children }) {
@@ -62,6 +62,22 @@ export function AuthProvider({ children }) {
     }
 
     try {
+      if (!isSupabaseConfigured()) {
+        const fallbackUser = {
+          id: authUser.id,
+          email: authUser.email,
+          name: authUser.user_metadata?.full_name || authUser.email.split('@')[0],
+          phone: authUser.user_metadata?.phone || '',
+          role: authUser.user_metadata?.role || 'Buyer',
+          state: authUser.user_metadata?.state || '',
+          city: authUser.user_metadata?.city || '',
+          avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(authUser.email)}&backgroundColor=0F1B3D&textColor=FFFFFF`,
+          createdAt: authUser.created_at
+        };
+        setUser(fallbackUser);
+        return fallbackUser;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('*')
@@ -69,7 +85,7 @@ export function AuthProvider({ children }) {
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') {
-        // Non-fatal, profile might not exist yet
+        console.warn('[AuthContext] Profile lookup warning:', error.message);
       }
 
       const userProfile = data || {
@@ -101,16 +117,16 @@ export function AuthProvider({ children }) {
 
       setUser(unifiedUser);
 
-      // Check if user came from Google and needs State
-      if (!userProfile.state) {
+      // Check if user came from Google OAuth and needs mandatory State
+      if (!userProfile.state || userProfile.state.trim() === '') {
         setNeedsProfileCompletion(true);
       } else {
         setNeedsProfileCompletion(false);
       }
 
       return unifiedUser;
-    } catch {
-      // In case of network/fetch issue, retain basic auth identity
+    } catch (err) {
+      console.warn('[AuthContext] Error in fetchProfile:', err);
       const fallbackUser = {
         id: authUser.id,
         email: authUser.email,
@@ -119,7 +135,7 @@ export function AuthProvider({ children }) {
         role: authUser.user_metadata?.role || 'Buyer',
         state: authUser.user_metadata?.state || '',
         city: authUser.user_metadata?.city || '',
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(authUser.email)}`,
+        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(authUser.email)}&backgroundColor=0F1B3D&textColor=FFFFFF`,
         createdAt: authUser.created_at
       };
       setUser(fallbackUser);
@@ -127,43 +143,37 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
-  // Initialize session on application mount
+  // Initialize session on application mount and restore persistent auth
   useEffect(() => {
     let isMounted = true;
 
     const initAuth = async () => {
       try {
         if (!isSupabaseConfigured()) {
-          // Restore local demo session if available
-          try {
-            const saved = localStorage.getItem('indstate_user_v1');
-            if (saved) {
-              const parsedUser = JSON.parse(saved);
-              if (parsedUser && isMounted) {
-                setUser(parsedUser);
-                setSession({ user: parsedUser, access_token: 'demo-token' });
-              }
-            }
-          } catch {
-            // Ignore parse errors
-          }
           if (isMounted) {
+            setUser(null);
+            setSession(null);
             setIsLoading(false);
           }
           return;
         }
 
+        // Restore real session from Supabase client local cache
         const { data: { session: initialSession }, error } = await supabase.auth.getSession();
         if (error) {
-          // session error handled silently
+          console.warn('[AuthContext] getSession warning:', error.message);
         }
 
         if (initialSession?.user && isMounted) {
           setSession(initialSession);
           await fetchProfile(initialSession.user);
+        } else if (isMounted) {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
         }
-      } catch {
-        // catch block for unhandled boot errors
+      } catch (err) {
+        console.warn('[AuthContext] Boot error:', err);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -174,7 +184,7 @@ export function AuthProvider({ children }) {
     initAuth();
 
     if (isSupabaseConfigured()) {
-      // Listen for auth state changes (login, logout, token refresh, OAuth return)
+      // Listen for auth state changes (login, logout, token refresh, OAuth redirect return)
       const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
         if (!isMounted) return;
         setSession(newSession);
@@ -200,14 +210,13 @@ export function AuthProvider({ children }) {
     }
   }, [fetchProfile]);
 
-  // 1. Send OTP for Registration / Login
+  // 1. Send OTP for Registration
   const sendOtp = async (email) => {
-    const normalized = email.trim().toLowerCase();
-
-    // Demo Mode Fallback
     if (!isSupabaseConfigured()) {
-      return { success: true, email: normalized, demoCode: '123456' };
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
+
+    const normalized = email.trim().toLowerCase();
 
     const { data, error } = await supabase.auth.signInWithOtp({
       email: normalized,
@@ -222,25 +231,17 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  // 2. Verify OTP (Registration Flow)
+  // 2. Verify OTP (Registration Flow Step 2)
   const verifyOtp = async (email, token) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error(CONFIG_ERROR_MESSAGE);
+    }
+
     const normalized = email.trim().toLowerCase();
     const cleanToken = token.trim();
 
-    // Demo Mode Fallback
-    if (!isSupabaseConfigured()) {
-      if (cleanToken.length !== 6) {
-        throw new Error('Please enter all 6 digits of the verification code.');
-      }
-      const demoUser = {
-        id: `usr-${Date.now().toString().slice(-4)}`,
-        email: normalized,
-        name: normalized.split('@')[0],
-        role: 'Buyer'
-      };
-      const demoSession = { user: demoUser, access_token: 'demo-otp-token' };
-      setSession(demoSession);
-      return { session: demoSession };
+    if (cleanToken.length !== 6) {
+      throw new Error('Please enter all 6 digits of the verification code.');
     }
 
     const { data, error } = await supabase.auth.verifyOtp({
@@ -261,28 +262,12 @@ export function AuthProvider({ children }) {
 
   // 3. Complete Profile & Set Password (Registration Step 3)
   const completeRegistration = async ({ fullName, state, city, phone, password }) => {
-    if (!state) {
+    if (!state || !state.trim()) {
       throw new Error('State is required. Indian State / UT selection is compulsory.');
     }
 
-    // Demo Mode Fallback
     if (!isSupabaseConfigured()) {
-      const regUser = {
-        id: session?.user?.id || `usr-${Date.now().toString().slice(-4)}`,
-        email: session?.user?.email || 'user@indstate.in',
-        name: fullName.trim(),
-        phone: phone?.trim() || '+91 98765 43210',
-        role: 'Buyer',
-        state: state,
-        city: city?.trim() || '',
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(fullName.trim())}&backgroundColor=0F1B3D&textColor=FFFFFF`,
-        createdAt: new Date().toISOString()
-      };
-      const demoSession = { user: regUser, access_token: 'demo-reg-token' };
-      setUser(regUser);
-      setSession(demoSession);
-      localStorage.setItem('indstate_user_v1', JSON.stringify(regUser));
-      return { success: true, user: regUser };
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
 
     // Set user's password and metadata in Supabase Auth
@@ -290,7 +275,7 @@ export function AuthProvider({ children }) {
       password: password,
       data: {
         full_name: fullName.trim(),
-        state: state,
+        state: state.trim(),
         city: city?.trim() || '',
         phone: phone?.trim() || ''
       }
@@ -307,26 +292,24 @@ export function AuthProvider({ children }) {
       throw new Error('Session expired. Please request a new OTP to continue.');
     }
 
-    // Insert or update profiles table
+    // Upsert into profiles table
     const profilePayload = {
       user_id: currentUserId,
       email: currentEmail,
       full_name: fullName.trim(),
-      state: state,
+      state: state.trim(),
       city: city?.trim() || '',
       phone: phone?.trim() || '',
       role: 'Buyer',
       updated_at: new Date().toISOString()
     };
 
-    const { data: _profileData, error: _profileErr } = await supabase
+    const { error: profileErr } = await supabase
       .from('profiles')
-      .upsert(profilePayload, { onConflict: 'user_id' })
-      .select()
-      .maybeSingle();
+      .upsert(profilePayload, { onConflict: 'user_id' });
 
-    if (_profileErr) {
-      // If table has RLS issue or not created yet, we still update in-memory state
+    if (profileErr) {
+      console.warn('[AuthContext] Profile upsert warning:', profileErr.message);
     }
 
     await fetchProfile(authUpdate.user || session.user);
@@ -335,31 +318,11 @@ export function AuthProvider({ children }) {
 
   // 4. Existing User Login (Email + Password)
   const signInWithPassword = async (email, password) => {
-    const cleanEmail = email.trim().toLowerCase();
-
-    // Demo Mode Fallback
     if (!isSupabaseConfigured()) {
-      const displayName = cleanEmail.split('@')[0]
-        .replace(/[._-]/g, ' ')
-        .replace(/\b\w/g, c => c.toUpperCase()) || 'INDSTATE Member';
-
-      const demoUser = {
-        id: `usr-${Date.now().toString().slice(-4)}`,
-        email: cleanEmail,
-        name: displayName,
-        phone: '+91 98765 43210',
-        role: 'Buyer',
-        state: 'Maharashtra',
-        city: 'Mumbai',
-        avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=0F1B3D&textColor=FFFFFF`,
-        createdAt: new Date().toISOString()
-      };
-      const demoSession = { user: demoUser, access_token: 'demo-password-token' };
-      setUser(demoUser);
-      setSession(demoSession);
-      localStorage.setItem('indstate_user_v1', JSON.stringify(demoUser));
-      return { user: demoUser, session: demoSession };
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
+
+    const cleanEmail = email.trim().toLowerCase();
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email: cleanEmail,
@@ -377,24 +340,8 @@ export function AuthProvider({ children }) {
 
   // 5. Google Sign-In with dynamic local / production redirect
   const signInWithGoogle = async (customRedirect = null) => {
-    // Demo Mode Fallback
     if (!isSupabaseConfigured()) {
-      const googleDemoUser = {
-        id: 'usr-google-demo',
-        email: 'arjun.verma@example.com',
-        name: 'Arjun Verma',
-        phone: '+91 98765 43210',
-        role: 'Buyer',
-        state: 'Maharashtra',
-        city: 'Mumbai',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
-        createdAt: new Date().toISOString()
-      };
-      const demoSession = { user: googleDemoUser, access_token: 'demo-google-token' };
-      setUser(googleDemoUser);
-      setSession(demoSession);
-      localStorage.setItem('indstate_user_v1', JSON.stringify(googleDemoUser));
-      return { user: googleDemoUser, session: demoSession };
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
 
     const target = customRedirect || redirectPath || '/dashboard';
@@ -403,7 +350,11 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl
+        redirectTo: redirectUrl,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        }
       }
     });
 
@@ -413,30 +364,24 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  // 6. Complete Profile for First-Time Google User
+  // 6. Complete Profile for First-Time Google User (State is Mandatory)
   const saveGoogleProfile = async ({ state, city }) => {
-    if (!state) {
-      throw new Error('State is required.');
+    if (!state || !state.trim()) {
+      throw new Error('State is required. Indian State / UT selection is compulsory.');
+    }
+
+    if (!isSupabaseConfigured()) {
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
 
     setIsSavingGoogleProfile(true);
     try {
-      if (!isSupabaseConfigured()) {
-        if (user) {
-          const updated = { ...user, state, city: city?.trim() || '' };
-          setUser(updated);
-          localStorage.setItem('indstate_user_v1', JSON.stringify(updated));
-        }
-        setNeedsProfileCompletion(false);
-        return;
-      }
-
       const currentUserId = session?.user?.id;
       if (!currentUserId) throw new Error('No active session found.');
 
       // Update auth user metadata
       await supabase.auth.updateUser({
-        data: { state, city: city?.trim() || '' }
+        data: { state: state.trim(), city: city?.trim() || '' }
       });
 
       // Upsert profile record
@@ -446,7 +391,7 @@ export function AuthProvider({ children }) {
           user_id: currentUserId,
           email: session.user.email,
           full_name: session.user.user_metadata?.full_name || session.user.user_metadata?.name || session.user.email.split('@')[0],
-          state: state,
+          state: state.trim(),
           city: city?.trim() || '',
           avatar_url: session.user.user_metadata?.avatar_url || session.user.user_metadata?.picture || '',
           updated_at: new Date().toISOString()
@@ -461,15 +406,13 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // 7. Forgot Password: Send OTP
+  // 7. Forgot Password: Send OTP / Password Reset Email
   const sendPasswordResetOtp = async (email) => {
-    const normalized = email.trim().toLowerCase();
-
-    // Demo Mode Fallback
     if (!isSupabaseConfigured()) {
-      return { success: true, email: normalized, demoCode: '123456' };
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
 
+    const normalized = email.trim().toLowerCase();
     const { data, error } = await supabase.auth.resetPasswordForEmail(normalized);
 
     if (error) {
@@ -480,17 +423,15 @@ export function AuthProvider({ children }) {
 
   // 8. Forgot Password: Verify OTP
   const verifyPasswordResetOtp = async (email, token) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error(CONFIG_ERROR_MESSAGE);
+    }
+
     const normalized = email.trim().toLowerCase();
     const cleanToken = token.trim();
 
-    // Demo Mode Fallback
-    if (!isSupabaseConfigured()) {
-      if (cleanToken.length !== 6) {
-        throw new Error('Please enter all 6 digits of the verification code.');
-      }
-      const demoSession = { user: { email: normalized }, access_token: 'demo-reset-token' };
-      setSession(demoSession);
-      return { success: true, session: demoSession };
+    if (cleanToken.length !== 6) {
+      throw new Error('Please enter all 6 digits of the verification code.');
     }
 
     const { data, error } = await supabase.auth.verifyOtp({
@@ -512,7 +453,7 @@ export function AuthProvider({ children }) {
   // 9. Reset Password: Update to new password
   const resetPassword = async (newPassword) => {
     if (!isSupabaseConfigured()) {
-      return { success: true };
+      throw new Error(CONFIG_ERROR_MESSAGE);
     }
 
     const { data, error } = await supabase.auth.updateUser({
@@ -527,14 +468,13 @@ export function AuthProvider({ children }) {
 
   // 10. Update Profile (Name, State, City, Phone)
   const updateProfile = async (updates) => {
-    const updatedUser = {
-      ...(user || {}),
-      ...updates
-    };
-    setUser(updatedUser);
-    localStorage.setItem('indstate_user_v1', JSON.stringify(updatedUser));
+    if (!isSupabaseConfigured()) {
+      const updatedUser = { ...(user || {}), ...updates };
+      setUser(updatedUser);
+      return updatedUser;
+    }
 
-    if (isSupabaseConfigured() && session?.user) {
+    if (session?.user) {
       const updatePayload = {
         ...updates,
         updated_at: new Date().toISOString()
@@ -555,7 +495,7 @@ export function AuthProvider({ children }) {
       return data;
     }
 
-    return updatedUser;
+    return user;
   };
 
   // 11. Switch Role (Buyer, Agent, Owner, Builder)
@@ -563,7 +503,6 @@ export function AuthProvider({ children }) {
     if (user) {
       const updatedUser = { ...user, role: newRole };
       setUser(updatedUser);
-      localStorage.setItem('indstate_user_v1', JSON.stringify(updatedUser));
 
       if (isSupabaseConfigured() && session?.user) {
         try {
@@ -572,7 +511,7 @@ export function AuthProvider({ children }) {
             .update({ role: newRole, updated_at: new Date().toISOString() })
             .eq('user_id', session.user.id);
         } catch {
-          // ignore background update error
+          // ignore background role update error
         }
       }
     }
@@ -590,7 +529,7 @@ export function AuthProvider({ children }) {
     setSession(null);
     setUser(null);
     setProfile(null);
-    localStorage.removeItem('indstate_user_v1');
+    setNeedsProfileCompletion(false);
     setIsAuthModalOpen(false);
   };
 
@@ -611,7 +550,7 @@ export function AuthProvider({ children }) {
         session,
         user,
         profile,
-        isAuthenticated: Boolean(user),
+        isAuthenticated: Boolean(user && session),
         isLoading,
         isConfigured: isSupabaseConfigured(),
         isAuthModalOpen,
@@ -634,8 +573,8 @@ export function AuthProvider({ children }) {
         updateProfile,
         switchRole,
         signOut,
-        logout: signOut, // backward compatibility with Navbar/TopBar
-        login: signInWithPassword // backward compatibility
+        logout: signOut,
+        login: signInWithPassword
       }}
     >
       {children}

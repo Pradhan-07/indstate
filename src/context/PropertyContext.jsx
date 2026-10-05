@@ -1,30 +1,29 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { 
+  fetchPropertiesFromSupabase, 
+  insertPropertyToSupabase, 
+  updatePropertyInSupabase, 
+  deletePropertyFromSupabase, 
+  subscribeToPropertiesRealtime,
+  fetchPropertyByIdFromSupabase
+} from '../services/propertyService';
 import { INITIAL_PROPERTIES } from '../data/initialProperties';
+import { useAuth } from './AuthContext';
 
 const PropertyContext = createContext();
 
-const STORAGE_PROPERTIES_KEY = 'indstate_properties_v1';
 const STORAGE_FAVORITES_KEY = 'indstate_favorites_v1';
 const STORAGE_COMPARE_KEY = 'indstate_compare_v1';
 const STORAGE_SAVED_SEARCHES_KEY = 'indstate_saved_searches_v1';
 const STORAGE_INQUIRIES_KEY = 'indstate_inquiries_v1';
 
 export function PropertyProvider({ children }) {
-  // 1. Properties State (loads persisted + defaults)
-  const [properties, setProperties] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_PROPERTIES_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch (e) {
-      console.error('Error reading properties from storage', e);
-    }
-    return INITIAL_PROPERTIES;
-  });
+  const { user } = useAuth();
+
+  // 1. Properties State
+  const [properties, setProperties] = useState(INITIAL_PROPERTIES);
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   // 2. Favorites State
   const [favorites, setFavorites] = useState(() => {
@@ -84,11 +83,57 @@ export function PropertyProvider({ children }) {
     }
   });
 
-  // Sync with LocalStorage
-  useEffect(() => {
-    localStorage.setItem(STORAGE_PROPERTIES_KEY, JSON.stringify(properties));
-  }, [properties]);
+  // Load properties initially from Supabase
+  const loadInitialProperties = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    try {
+      const data = await fetchPropertiesFromSupabase();
+      if (Array.isArray(data) && data.length > 0) {
+        setProperties(data);
+      }
+    } catch (err) {
+      console.warn('[PropertyContext] Error loading properties:', err);
+      setFetchError(err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
+  // Initialize data and setup Realtime subscription
+  useEffect(() => {
+    loadInitialProperties();
+
+    // Setup Supabase Realtime subscription
+    // Listens for INSERT, UPDATE, DELETE on 'properties' table across all connected browsers
+    const unsubscribe = subscribeToPropertiesRealtime({
+      onInsert: (newProperty) => {
+        setProperties(prev => {
+          // Avoid duplicate inserts
+          if (prev.some(p => String(p.id) === String(newProperty.id))) {
+            return prev;
+          }
+          return [newProperty, ...prev];
+        });
+      },
+      onUpdate: (updatedProperty) => {
+        setProperties(prev => 
+          prev.map(p => String(p.id) === String(updatedProperty.id) ? updatedProperty : p)
+        );
+      },
+      onDelete: (deletedId) => {
+        setProperties(prev => 
+          prev.filter(p => String(p.id) !== String(deletedId))
+        );
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, [loadInitialProperties]);
+
+  // Sync state helpers with localStorage
   useEffect(() => {
     localStorage.setItem(STORAGE_FAVORITES_KEY, JSON.stringify(favorites));
   }, [favorites]);
@@ -140,24 +185,81 @@ export function PropertyProvider({ children }) {
 
   const isInCompare = (propertyId) => compareList.some(p => p.id === propertyId);
 
-  const addProperty = (newProp) => {
-    const propertyWithId = {
-      ...newProp,
-      id: `IND-${newProp.state?.substring(0, 2).toUpperCase() || 'IN'}-${Date.now().toString().slice(-4)}`,
-      status: "Active",
-      featured: false,
-      createdAt: new Date().toISOString()
-    };
-    setProperties(prev => [propertyWithId, ...prev]);
-    return propertyWithId;
+  /**
+   * Save property permanently to Supabase backend
+   */
+  const addProperty = async (newPropData) => {
+    try {
+      const created = await insertPropertyToSupabase(newPropData, user);
+      // Immediately reflect in state if realtime event takes milliseconds
+      setProperties(prev => {
+        if (prev.some(p => String(p.id) === String(created.id))) {
+          return prev;
+        }
+        return [created, ...prev];
+      });
+      return created;
+    } catch (err) {
+      console.error('[PropertyContext] Error creating property:', err);
+      throw err;
+    }
   };
 
-  const updateProperty = (id, updatedFields) => {
-    setProperties(prev => prev.map(p => p.id === id ? { ...p, ...updatedFields } : p));
+  /**
+   * Update property in Supabase backend
+   */
+  const updateProperty = async (id, updatedFields) => {
+    try {
+      // Optimistic update
+      setProperties(prev => prev.map(p => String(p.id) === String(id) ? { ...p, ...updatedFields } : p));
+      await updatePropertyInSupabase(id, updatedFields);
+    } catch (err) {
+      console.error('[PropertyContext] Error updating property:', err);
+      // Revert/refresh on error
+      loadInitialProperties();
+      throw err;
+    }
   };
 
-  const deleteProperty = (id) => {
-    setProperties(prev => prev.filter(p => p.id !== id));
+  /**
+   * Delete property permanently from Supabase backend
+   */
+  const deleteProperty = async (id) => {
+    try {
+      // Optimistic removal
+      setProperties(prev => prev.filter(p => String(p.id) !== String(id)));
+      await deletePropertyFromSupabase(id);
+    } catch (err) {
+      console.error('[PropertyContext] Error deleting property:', err);
+      // Revert/refresh on error
+      loadInitialProperties();
+      throw err;
+    }
+  };
+
+  /**
+   * Query database properties with specific filters (e.g. State, City, Type)
+   */
+  const fetchByFilter = async (filters) => {
+    setIsLoading(true);
+    try {
+      const filtered = await fetchPropertiesFromSupabase(filters);
+      return filtered;
+    } catch (err) {
+      console.error('[PropertyContext] Filter error:', err);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  /**
+   * Fetch single property by ID
+   */
+  const getPropertyById = async (id) => {
+    const existing = properties.find(p => String(p.id) === String(id));
+    if (existing) return existing;
+    return await fetchPropertyByIdFromSupabase(id);
   };
 
   const submitInquiry = (inquiryData) => {
@@ -188,6 +290,9 @@ export function PropertyProvider({ children }) {
     <PropertyContext.Provider
       value={{
         properties,
+        isLoading,
+        fetchError,
+        reloadProperties: loadInitialProperties,
         favorites,
         toggleFavorite,
         isFavorite,
@@ -201,6 +306,8 @@ export function PropertyProvider({ children }) {
         addProperty,
         updateProperty,
         deleteProperty,
+        fetchByFilter,
+        getPropertyById,
         inquiries,
         submitInquiry,
         savedSearches,

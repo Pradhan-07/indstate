@@ -1,31 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Building2, MapPin, IndianRupee, ShieldCheck, 
-  CheckCircle2, ArrowRight, ArrowLeft, Image as ImageIcon, 
-  Layers, Compass 
+  Building2, CheckCircle2, ArrowRight, ArrowLeft, 
+  Upload, X, Loader2, AlertCircle
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { INDIAN_STATES, UNION_TERRITORIES } from '../data/indianStatesAndCities';
 import { useProperty } from '../context/PropertyContext';
+import { useAuth } from '../context/AuthContext';
+import { uploadPropertyPhotoToStorage } from '../services/propertyService';
 import { formatIndianPrice } from '../utils/currencyFormatter';
 
 export default function AddPropertyPage() {
   const navigate = useNavigate();
   const { addProperty } = useProperty();
+  const { user } = useAuth();
 
   const [step, setStep] = useState(1);
   const [submittedPropertyId, setSubmittedPropertyId] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [formError, setFormError] = useState('');
 
-  // Form State
-  const [formData, setFormData] = useState({
+  // Form State initialized directly with active user
+  const [formData, setFormData] = useState(() => ({
     title: '',
     purpose: 'Buy', // 'Buy' | 'Rent' | 'PG-Co-living' | 'Commercial' | 'Plots'
     propertyType: 'Apartment',
     price: '',
     maintenanceCharges: '',
-    state: 'Maharashtra',
-    city: 'Mumbai',
+    state: user?.state || 'Maharashtra',
+    city: user?.city || 'Mumbai',
     locality: '',
     district: '',
     pinCode: '',
@@ -43,9 +48,9 @@ export default function AddPropertyPage() {
     parking: '1 Covered Car Bay',
     reraNumber: '',
     description: '',
-    contactName: 'Arjun Verma',
-    contactPhone: '9876543210',
-    contactRole: 'Owner',
+    contactName: user?.name || 'INDSTATE Member',
+    contactPhone: user?.phone ? user.phone.replace(/^\+91\s*/, '') : '9876543210',
+    contactRole: user?.role === 'Owner' || user?.role === 'Agent' ? user.role : 'Owner',
     images: [
       'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80'
@@ -53,13 +58,11 @@ export default function AddPropertyPage() {
     amenities: [
       "100% Power Backup", "Clubhouse", "24x7 Security & CCTV", "Vastu Compliant", "Lifts", "Rainwater Harvesting"
     ]
-  });
+  }));
 
   const allRegions = [...INDIAN_STATES, ...UNION_TERRITORIES];
   const currentStateObj = allRegions.find(r => r.name === formData.state);
   const citiesList = currentStateObj?.cities || [];
-  const currentCityObj = citiesList.find(c => c.name === formData.city);
-  const localitiesList = currentCityObj?.localities || [];
 
   const handleStateChange = (e) => {
     const newState = e.target.value;
@@ -71,6 +74,7 @@ export default function AddPropertyPage() {
       city: newCity,
       locality: ''
     });
+    setFormError('');
   };
 
   const toggleAmenity = (amenity) => {
@@ -85,39 +89,147 @@ export default function AddPropertyPage() {
     });
   };
 
-  const handleSubmit = (e) => {
+  // Upload file directly to Supabase Storage 'property-images' bucket
+  const handleFileUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+
+    setIsUploadingImage(true);
+    setFormError('');
+
+    try {
+      const uploadedUrls = [];
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const publicUrl = await uploadPropertyPhotoToStorage(file, user?.id);
+        uploadedUrls.push(publicUrl);
+      }
+
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, ...uploadedUrls]
+      }));
+    } catch (err) {
+      setFormError(`Image upload error: ${err.message}`);
+    } finally {
+      setIsUploadingImage(false);
+      e.target.value = '';
+    }
+  };
+
+  const removeImage = (indexToRemove) => {
+    setFormData(prev => ({
+      ...prev,
+      images: prev.images.filter((_, idx) => idx !== indexToRemove)
+    }));
+  };
+
+  const addPresetImage = (url) => {
+    if (!formData.images.includes(url)) {
+      setFormData(prev => ({
+        ...prev,
+        images: [...prev.images, url]
+      }));
+    }
+  };
+
+  const handleNextStep = (e) => {
     e.preventDefault();
-    const priceNum = Number(formData.price) || 5000000;
-    const carpetNum = Number(formData.carpetArea) || 1000;
-    const pricePerSqFt = Math.round(priceNum / carpetNum);
+    setFormError('');
 
-    const newListing = {
-      ...formData,
-      price: priceNum,
-      carpetArea: carpetNum,
-      superBuiltUpArea: Number(formData.superBuiltUpArea) || Math.round(carpetNum * 1.3),
-      pricePerSqFt: pricePerSqFt,
-      maintenanceCharges: Number(formData.maintenanceCharges) || 0,
-      isReraVerified: formData.reraNumber.trim().length > 4,
-      agent: {
-        name: formData.contactName,
-        phone: `+91 ${formData.contactPhone}`,
-        whatsapp: `91${formData.contactPhone}`,
-        agency: formData.contactRole === 'Owner' ? 'Direct Owner (0% Brokerage)' : 'Certified Channel Partner',
-        rating: 4.8,
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
-      },
-      coordinates: [19.0760, 72.8777] // Default coordinates
-    };
+    if (step === 1) {
+      if (!formData.title.trim()) {
+        setFormError('Please enter a descriptive property title.');
+        return;
+      }
+      setStep(2);
+      return;
+    }
 
-    const saved = addProperty(newListing);
-    setSubmittedPropertyId(saved.id);
+    if (step === 2) {
+      if (!formData.state.trim()) {
+        setFormError('State is required. Indian State / UT selection is compulsory.');
+        return;
+      }
+      if (!formData.city.trim()) {
+        setFormError('City is required.');
+        return;
+      }
+      setStep(3);
+      return;
+    }
 
-    confetti({
-      particleCount: 100,
-      spread: 70,
-      origin: { y: 0.6 }
-    });
+    if (step === 3) {
+      if (!formData.carpetArea || Number(formData.carpetArea) <= 0) {
+        setFormError('Please enter a valid carpet area in sq.ft.');
+        return;
+      }
+      setStep(4);
+      return;
+    }
+
+    if (step === 4) {
+      if (!formData.price || Number(formData.price) <= 0) {
+        setFormError('Please enter a valid property price in Indian Rupees (₹).');
+        return;
+      }
+      setStep(5);
+      return;
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!formData.description.trim()) {
+      setFormError('Please enter a detailed description for your property.');
+      return;
+    }
+
+    if (!formData.images || formData.images.length === 0) {
+      setFormError('At least one property photo is required.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const priceNum = Number(formData.price) || 5000000;
+      const carpetNum = Number(formData.carpetArea) || 1000;
+      const pricePerSqFt = Math.round(priceNum / carpetNum);
+
+      const newListing = {
+        ...formData,
+        price: priceNum,
+        carpetArea: carpetNum,
+        superBuiltUpArea: Number(formData.superBuiltUpArea) || Math.round(carpetNum * 1.3),
+        pricePerSqFt: pricePerSqFt,
+        maintenanceCharges: Number(formData.maintenanceCharges) || 0,
+        isReraVerified: formData.reraNumber?.trim().length > 4,
+        agent: {
+          name: formData.contactName || user?.name || 'INDSTATE Verified Owner',
+          phone: `+91 ${formData.contactPhone}`,
+          whatsapp: `91${formData.contactPhone.replace(/\D/g, '')}`,
+          agency: formData.contactRole === 'Owner' ? 'Direct Owner (0% Brokerage)' : 'Certified Channel Partner',
+          rating: 4.8,
+          avatar: user?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80'
+        },
+        coordinates: [19.0760, 72.8777]
+      };
+
+      const saved = await addProperty(newListing);
+      setSubmittedPropertyId(saved.id);
+
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 }
+      });
+    } catch (err) {
+      setFormError(err.message || 'Failed to publish property to database.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const amenityOptions = [
@@ -227,7 +339,27 @@ export default function AddPropertyPage() {
               ))}
             </div>
 
-            <form onSubmit={step === 5 ? handleSubmit : (e) => { e.preventDefault(); setStep(step + 1); }}>
+            {formError && (
+              <div 
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '12px 16px',
+                  background: '#FEF2F2',
+                  border: '1px solid #FCA5A5',
+                  borderRadius: 'var(--radius-md)',
+                  color: '#DC2626',
+                  fontSize: '13px',
+                  marginBottom: '20px'
+                }}
+              >
+                <AlertCircle size={16} style={{ flexShrink: 0 }} />
+                <span>{formError}</span>
+              </div>
+            )}
+
+            <form onSubmit={step === 5 ? handleSubmit : handleNextStep}>
               {/* STEP 1: Basic Info */}
               {step === 1 && (
                 <div>
@@ -636,8 +768,143 @@ export default function AddPropertyPage() {
               {step === 5 && (
                 <div>
                   <h3 style={{ fontSize: '18px', color: 'var(--primary)', marginBottom: '16px' }}>
-                    Step 5: Photos & Amenities
+                    Step 5: Photos & Amenities (Supabase Storage)
                   </h3>
+
+                  {/* Supabase Storage Image Upload Box */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>
+                      Property Images * (Stored in Supabase Storage bucket: property-images)
+                    </label>
+
+                    {/* Drag and drop / click upload area */}
+                    <label 
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: '28px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        border: '2px dashed var(--saffron)',
+                        background: 'var(--saffron-light)',
+                        cursor: isUploadingImage ? 'not-allowed' : 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.2s ease',
+                        marginBottom: '14px'
+                      }}
+                    >
+                      <input 
+                        type="file" 
+                        multiple 
+                        accept="image/*" 
+                        onChange={handleFileUpload}
+                        disabled={isUploadingImage}
+                        style={{ display: 'none' }} 
+                      />
+                      {isUploadingImage ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--saffron)' }}>
+                          <Loader2 size={24} className="animate-spin" />
+                          <span style={{ fontSize: '14px', fontWeight: 600 }}>Uploading to Supabase Storage...</span>
+                        </div>
+                      ) : (
+                        <>
+                          <Upload size={32} color="var(--saffron)" style={{ marginBottom: '8px' }} />
+                          <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--primary)' }}>
+                            Click to Upload Property Photos
+                          </span>
+                          <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                            Upload PNG, JPG, or WEBP images. Directly uploaded to secure Supabase Storage.
+                          </span>
+                        </>
+                      )}
+                    </label>
+
+                    {/* Gallery Previews with Delete Button */}
+                    {formData.images.length > 0 && (
+                      <div>
+                        <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-main)', display: 'block', marginBottom: '8px' }}>
+                          Selected Photos ({formData.images.length})
+                        </span>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+                          {formData.images.map((imgUrl, idx) => (
+                            <div 
+                              key={idx} 
+                              style={{ 
+                                position: 'relative', 
+                                height: '80px', 
+                                borderRadius: '6px', 
+                                overflow: 'hidden', 
+                                border: '1px solid var(--border-color)',
+                                boxShadow: 'var(--shadow-xs)'
+                              }}
+                            >
+                              <img 
+                                src={imgUrl} 
+                                alt={`Property ${idx + 1}`} 
+                                style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                              />
+                              <button
+                                type="button"
+                                onClick={() => removeImage(idx)}
+                                style={{
+                                  position: 'absolute',
+                                  top: '4px',
+                                  right: '4px',
+                                  background: 'rgba(0,0,0,0.65)',
+                                  color: '#FFFFFF',
+                                  border: 'none',
+                                  borderRadius: '50%',
+                                  width: '20px',
+                                  height: '20px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  cursor: 'pointer'
+                                }}
+                                title="Remove Image"
+                              >
+                                <X size={12} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Preset Architectures */}
+                    <div style={{ background: 'var(--bg-page)', padding: '12px 14px', borderRadius: '6px', border: '1px solid var(--border-light)' }}>
+                      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: '6px' }}>
+                        Quick Sample Photos (Click to attach):
+                      </span>
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        {[
+                          { label: '+ Sea-Facing Balcony', url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80' },
+                          { label: '+ Designer Living Hall', url: 'https://images.unsplash.com/photo-1600566753376-12c8ab7fb75b?auto=format&fit=crop&w=1200&q=80' },
+                          { label: '+ Luxury Kitchen', url: 'https://images.unsplash.com/photo-1600585154526-990dced4db0d?auto=format&fit=crop&w=1200&q=80' },
+                          { label: '+ Master Suite', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80' }
+                        ].map(preset => (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => addPresetImage(preset.url)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              background: '#FFFFFF',
+                              border: '1px solid var(--border-color)',
+                              cursor: 'pointer',
+                              color: 'var(--primary)'
+                            }}
+                          >
+                            {preset.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
 
                   <div style={{ marginBottom: '20px' }}>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px' }}>
@@ -673,10 +940,11 @@ export default function AddPropertyPage() {
 
                   <div style={{ marginBottom: '24px' }}>
                     <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '6px' }}>
-                      Detailed Property Description
+                      Detailed Property Description *
                     </label>
                     <textarea 
                       rows={4}
+                      required
                       placeholder="Mention layout benefits, cross ventilation, connectivity to metro, school or IT parks..."
                       value={formData.description}
                       onChange={e => setFormData({ ...formData, description: e.target.value })}
@@ -691,17 +959,31 @@ export default function AddPropertyPage() {
                 {step > 1 ? (
                   <button 
                     type="button" 
-                    onClick={() => setStep(step - 1)}
+                    onClick={() => { setStep(step - 1); setFormError(''); }}
                     className="btn btn-outline"
+                    disabled={isSubmitting}
                   >
                     <ArrowLeft size={16} />
                     <span>Previous Step</span>
                   </button>
                 ) : <div />}
 
-                <button type="submit" className="btn btn-primary btn-lg">
-                  <span>{step === 5 ? 'Publish Property Now' : 'Continue to Next Step'}</span>
-                  <ArrowRight size={16} />
+                <button 
+                  type="submit" 
+                  disabled={isSubmitting || isUploadingImage}
+                  className="btn btn-primary btn-lg"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={16} className="animate-spin" />
+                      <span>Publishing to Supabase...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>{step === 5 ? 'Publish Property Now' : 'Continue to Next Step'}</span>
+                      <ArrowRight size={16} />
+                    </>
+                  )}
                 </button>
               </div>
             </form>
