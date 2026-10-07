@@ -33,6 +33,27 @@ function sanitizeAuthError(err, operation = 'auth') {
   return classifyAuthError(err, operation);
 }
 
+/**
+ * Dynamically resolves the exact site origin for Supabase redirects.
+ * - Always uses current window.location.origin in browser (production Vercel, custom domain, or localhost)
+ * - Supports VITE_SITE_URL environment variable if explicitly configured
+ * - Prevents unwanted fallback to localhost when running in production
+ */
+export const getAuthRedirectUrl = (path = '/dashboard') => {
+  let origin = '';
+  if (typeof window !== 'undefined' && window.location && window.location.origin) {
+    origin = window.location.origin;
+  } else if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_SITE_URL) {
+    origin = import.meta.env.VITE_SITE_URL;
+  } else {
+    origin = 'http://localhost:5173';
+  }
+
+  const cleanOrigin = origin.replace(/\/+$/, '');
+  const cleanPath = path ? (path.startsWith('/') ? path : `/${path}`) : '/dashboard';
+  return `${cleanOrigin}${cleanPath}`;
+};
+
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
@@ -200,16 +221,27 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // Check for URL hash OAuth error or access token (e.g. from redirect)
-        if (typeof window !== 'undefined' && window.location.hash) {
-          const hash = window.location.hash;
-          if (hash.includes('error=')) {
-            const params = new URLSearchParams(hash.substring(1));
-            const errType = params.get('error') || '';
-            const errDesc = params.get('error_description') || '';
-            safeLogAuthError('OAuthRedirectHash', { code: errType, message: errDesc });
-            // Clean up the hash so it doesn't linger in the address bar
-            window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        // Check for URL hash or query OAuth error / access token
+        if (typeof window !== 'undefined') {
+          if (window.location.search) {
+            const searchParams = new URLSearchParams(window.location.search);
+            if (searchParams.has('error') || searchParams.has('error_description')) {
+              const errType = searchParams.get('error') || '';
+              const errDesc = searchParams.get('error_description') || '';
+              safeLogAuthError('OAuthRedirectQueryError', { code: errType, message: errDesc });
+            }
+          }
+
+          if (window.location.hash) {
+            const hash = window.location.hash;
+            if (hash.includes('error=')) {
+              const params = new URLSearchParams(hash.substring(1));
+              const errType = params.get('error') || '';
+              const errDesc = params.get('error_description') || '';
+              safeLogAuthError('OAuthRedirectHash', { code: errType, message: errDesc });
+              // Clean up the hash so it doesn't linger in the address bar
+              window.history.replaceState(null, '', window.location.pathname + window.location.search);
+            }
           }
         }
 
@@ -305,7 +337,8 @@ export function AuthProvider({ children }) {
     const { data, error } = await supabase.auth.signInWithOtp({
       email: normalized,
       options: {
-        shouldCreateUser: true
+        shouldCreateUser: true,
+        emailRedirectTo: getAuthRedirectUrl('/dashboard')
       }
     });
 
@@ -380,6 +413,7 @@ export function AuthProvider({ children }) {
         email: regEmail.trim().toLowerCase(),
         password: password,
         options: {
+          emailRedirectTo: getAuthRedirectUrl('/dashboard'),
           data: {
             full_name: fullName.trim(),
             state: state.trim(),
@@ -493,10 +527,8 @@ export function AuthProvider({ children }) {
       throw err;
     }
 
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:5173';
     const target = customRedirect || redirectPath || '/dashboard';
-    const cleanTarget = target.startsWith('/') ? target : `/${target}`;
-    const redirectUrl = `${origin}${cleanTarget}`;
+    const redirectUrl = getAuthRedirectUrl(target);
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -582,7 +614,9 @@ export function AuthProvider({ children }) {
     }
 
     const normalized = email.trim().toLowerCase();
-    const { data, error } = await supabase.auth.resetPasswordForEmail(normalized);
+    const { data, error } = await supabase.auth.resetPasswordForEmail(normalized, {
+      redirectTo: getAuthRedirectUrl('/forgot-password')
+    });
 
     if (error) {
       throw new Error(classifyAuthError(error, 'sendPasswordResetOtp'));
@@ -742,6 +776,7 @@ export function AuthProvider({ children }) {
         sendOtp,
         verifyOtp,
         completeRegistration,
+        getAuthRedirectUrl,
         signIn: signInWithPassword,
         signInWithPassword,
         signInWithGoogle,

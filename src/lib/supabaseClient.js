@@ -26,7 +26,7 @@ export const AUTH_MESSAGES = {
   CONFIG_MISSING: isDev
     ? 'Authentication configuration is missing. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local and restart the development server.'
     : 'Authentication configuration is missing.',
-  GOOGLE_NOT_ENABLED: 'Google sign-in is not configured yet. Please try email and password.',
+  GOOGLE_NOT_ENABLED: 'Google sign-in is not configured yet. Please try again later or use email and password.',
   GOOGLE_REDIRECT_INVALID: 'Google sign-in could not be completed. Please check the Google OAuth configuration.',
   GOOGLE_NETWORK_ERROR: 'Unable to connect to the sign-in service. Please check your internet connection.',
   NETWORK_FAILURE: 'Unable to connect to the authentication service. Please check your internet connection.',
@@ -53,6 +53,8 @@ export function classifyGoogleOAuthError(err) {
 
   const raw = typeof err === 'string' ? err : err.message || '';
   const message = raw.toLowerCase();
+  const errorCode = (err?.error_code || err?.code || '').toLowerCase();
+  const status = Number(err?.status || err?.statusCode || 0);
 
   // User cancelled - silent return, no scary banner
   if (
@@ -77,15 +79,18 @@ export function classifyGoogleOAuthError(err) {
     return AUTH_MESSAGES.GOOGLE_NETWORK_ERROR;
   }
 
-  // Provider not enabled / configured
+  // Provider not enabled / configured (Supabase 400 validation_failed: Unsupported provider: provider is not enabled)
   if (
-    message.includes('not configured') ||
-    message.includes('not enabled') ||
     message.includes('unsupported provider') ||
     message.includes('provider is not enabled') ||
+    message.includes('not configured') ||
+    message.includes('not enabled') ||
+    errorCode === 'validation_failed' ||
+    message.includes('validation_failed') ||
     message.includes('config_missing') ||
     message.includes('configuration is missing') ||
-    message.includes('placeholder')
+    message.includes('placeholder') ||
+    (status === 400 && message.includes('provider'))
   ) {
     return AUTH_MESSAGES.GOOGLE_NOT_ENABLED;
   }
@@ -101,7 +106,7 @@ export function classifyGoogleOAuthError(err) {
     return AUTH_MESSAGES.GOOGLE_REDIRECT_INVALID;
   }
 
-  return AUTH_MESSAGES.GOOGLE_REDIRECT_INVALID;
+  return AUTH_MESSAGES.GOOGLE_NOT_ENABLED;
 }
 
 /**
