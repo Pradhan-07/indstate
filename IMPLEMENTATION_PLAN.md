@@ -6,7 +6,7 @@
 ## 1. Executive Summary
 
 - **Project**: INDSTATE — India's Most Trusted Property Marketplace
-- **Objective**: Replace the previous static 6-card grid in the *"Why INDSTATE / India's Most Trusted Property Marketplace"* section with a fluid, scroll-driven horizontal timeline animation inspired by the [SkillClass Framer Website](https://skillclass.framer.website/), while preserving 100% of INDSTATE's original content, branding, typography, and pure white (`#FFFFFF`) website aesthetics.
+, while preserving 100% of INDSTATE's original content, branding, typography, and pure white (`#FFFFFF`) website aesthetics.
 - **Repository**: [https://github.com/Pradhan-07/indstate.git](https://github.com/Pradhan-07/indstate.git)
 - **Branch**: `main` (Latest commit: `9e33b79`)
 - **Local Dev Server**: `http://localhost:5173/`
