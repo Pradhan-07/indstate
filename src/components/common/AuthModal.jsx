@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  X, Lock, Mail, User, MapPin, Eye, EyeOff, 
-  ArrowLeft, AlertCircle, CheckCircle2, ShieldCheck, 
-  RotateCcw, Sparkles 
+  X, Eye, EyeOff, ArrowLeft, AlertCircle, 
+  CheckCircle2, ShieldCheck, Sparkles, Building2, User, KeyRound 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { INDIAN_STATES, UNION_TERRITORIES, ALL_REGIONS } from '../../data/indianStatesAndCities';
+import { INDIAN_STATES, UNION_TERRITORIES } from '../../data/indianStatesAndCities';
 import IndstateLogo from './IndstateLogo';
 import OtpInput from '../auth/OtpInput';
 import PasswordStrengthIndicator, { calculatePasswordStrength } from '../auth/PasswordStrengthIndicator';
@@ -19,15 +18,14 @@ export default function AuthModal() {
     setAuthMode, 
     signInWithPassword,
     signInWithGoogle,
-    sendOtp,
-    verifyOtp,
-    completeRegistration,
+    registerDirect,
     sendPasswordResetOtp,
     verifyPasswordResetOtp,
     resetPassword,
+    signInAsPreset,
+    PRESET_ACCOUNTS,
     redirectPath,
     setRedirectPath,
-    isConfigured,
     enterInstantDemo
   } = useAuth();
 
@@ -36,10 +34,8 @@ export default function AuthModal() {
   // Mode: 'login' | 'register' | 'forgot'
   const [currentMode, setCurrentMode] = useState('login');
 
-  // Sub-steps for register & forgot password flows:
-  // Register: 1 = Enter Email, 2 = Verify OTP, 3 = Complete Profile
-  // Forgot: 1 = Enter Email, 2 = Verify OTP, 3 = Set New Password
-  const [step, setStep] = useState(1);
+  // Forgot password step: 1 = Email, 2 = OTP, 3 = Password
+  const [forgotStep, setForgotStep] = useState(1);
 
   // Form Fields
   const [email, setEmail] = useState('');
@@ -51,41 +47,35 @@ export default function AuthModal() {
   const [selectedState, setSelectedState] = useState('');
   const [city, setCity] = useState('');
   const [phone, setPhone] = useState('');
+  const [selectedRole, setSelectedRole] = useState('Buyer');
   const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
 
-  // UI States
+  // Status & Feedback
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
-
-  // Resend OTP Cooldown (60 seconds)
   const [cooldown, setCooldown] = useState(0);
 
-  // Active error displayed in modal banner
-  const activeError = errorMessage;
-
-  // Sync mode with context and ensure modal opens clean with no lingering errors
+  // Sync mode with context
   useEffect(() => {
     if (isAuthModalOpen) {
       setErrorMessage('');
       setSuccessMessage('');
       setIsGoogleLoading(false);
       setIsLoading(false);
-    }
-    if (authMode === 'register') {
-      setCurrentMode('register');
-      setStep(1);
-    } else if (authMode === 'forgot-password' || authMode === 'forgot') {
-      setCurrentMode('forgot');
-      setStep(1);
-    } else {
-      setCurrentMode('login');
-      setStep(1);
+      if (authMode === 'register') {
+        setCurrentMode('register');
+      } else if (authMode === 'forgot-password' || authMode === 'forgot') {
+        setCurrentMode('forgot');
+        setForgotStep(1);
+      } else {
+        setCurrentMode('login');
+      }
     }
   }, [authMode, isAuthModalOpen]);
 
-  // Cooldown countdown timer
+  // Cooldown timer
   useEffect(() => {
     let timer;
     if (cooldown > 0) {
@@ -100,7 +90,6 @@ export default function AuthModal() {
     closeAuthModal();
     setErrorMessage('');
     setSuccessMessage('');
-    setIsGoogleLoading(false);
   };
 
   const handlePostAuthSuccess = () => {
@@ -112,9 +101,7 @@ export default function AuthModal() {
     }
   };
 
-  // --------------------------------------------------------------------------
-  // LOGIN FLOW (Email + Password)
-  // --------------------------------------------------------------------------
+  // 1. LOGIN SUBMIT
   const handleLogin = async (e) => {
     e.preventDefault();
     setErrorMessage('');
@@ -136,127 +123,20 @@ export default function AuthModal() {
     }
   };
 
-  // --------------------------------------------------------------------------
-  // INSTANT DEMO (Explore website instantly without credentials)
-  // --------------------------------------------------------------------------
-  const handleInstantDemo = () => {
-    setErrorMessage('');
-    enterInstantDemo();
-    handlePostAuthSuccess();
-  };
-
-  // --------------------------------------------------------------------------
-  // GOOGLE LOGIN
-  // --------------------------------------------------------------------------
-  const handleGoogleSignIn = async () => {
-    if (isGoogleLoading) return;
-    setErrorMessage('');
-    setIsGoogleLoading(true);
-    try {
-      await signInWithGoogle();
-    } catch (err) {
-      // If user cancelled, error is handled cleanly without scary error banner
-      if (err?.message) {
-        setErrorMessage(err.message);
-      }
-    } finally {
-      setIsGoogleLoading(false);
-    }
-  };
-
-  // --------------------------------------------------------------------------
-  // REGISTER FLOW - STEP 1: Send OTP to Email
-  // --------------------------------------------------------------------------
-  const handleRegisterSendOtp = async (e) => {
+  // 2. REGISTER SUBMIT (Direct 1-step registration)
+  const handleRegister = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
-
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
-      setErrorMessage('Invalid email address. Please enter a valid email.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const res = await sendOtp(normalizedEmail);
-      if (res?.isRateLimited) {
-        setSuccessMessage('Supabase email limit reached (3/hr limit). Use test code 123456 to continue.');
-      } else {
-        setSuccessMessage(`Verification code sent to ${normalizedEmail}`);
-      }
-      setStep(2);
-      setCooldown(60);
-      setOtpDigits(['', '', '', '', '', '']);
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Resend OTP
-  const handleResendOtp = async () => {
-    if (cooldown > 0 || isLoading) return;
-    setErrorMessage('');
-    setSuccessMessage('');
-    setIsLoading(true);
-
-    try {
-      if (currentMode === 'register') {
-        await sendOtp(email.trim().toLowerCase());
-      } else {
-        await sendPasswordResetOtp(email.trim().toLowerCase());
-      }
-      setSuccessMessage('A fresh verification code has been sent to your email.');
-      setCooldown(60);
-      setOtpDigits(['', '', '', '', '', '']);
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // --------------------------------------------------------------------------
-  // REGISTER FLOW - STEP 2: Verify OTP
-  // --------------------------------------------------------------------------
-  const handleRegisterVerifyOtp = async (e) => {
-    if (e) e.preventDefault();
-    setErrorMessage('');
-    setSuccessMessage('');
-
-    const code = otpDigits.join('');
-    if (code.length !== 6) {
-      setErrorMessage('Please enter all 6 digits of the verification code.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      await verifyOtp(email, code);
-      setSuccessMessage('Email verified successfully! Complete your profile.');
-      setStep(3);
-    } catch (err) {
-      setErrorMessage(err.message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // --------------------------------------------------------------------------
-  // REGISTER FLOW - STEP 3: Complete Profile & Password
-  // --------------------------------------------------------------------------
-  const handleRegisterComplete = async (e) => {
-    e.preventDefault();
-    setErrorMessage('');
 
     if (!fullName.trim()) {
       setErrorMessage('Full Name is required.');
       return;
     }
-
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setErrorMessage('Please enter a valid email address.');
+      return;
+    }
     if (!selectedState) {
       setErrorMessage('State is required. Indian State / UT selection is compulsory.');
       return;
@@ -264,7 +144,7 @@ export default function AuthModal() {
 
     const { isValid } = calculatePasswordStrength(password);
     if (!isValid) {
-      setErrorMessage('Password does not meet requirements (min 8 characters, uppercase, lowercase, number).');
+      setErrorMessage('Password must be at least 8 characters with letters and numbers.');
       return;
     }
 
@@ -275,42 +155,78 @@ export default function AuthModal() {
 
     setIsLoading(true);
     try {
-      await completeRegistration({
+      await registerDirect({
         fullName,
+        email,
+        password,
         state: selectedState,
         city,
         phone,
-        password,
-        email: email.trim().toLowerCase()
+        role: selectedRole
       });
-
-      handlePostAuthSuccess();
+      setSuccessMessage('Account created successfully! Welcome to INDSTATE.');
+      setTimeout(() => {
+        handlePostAuthSuccess();
+      }, 700);
     } catch (err) {
-      setErrorMessage(err.message);
+      setErrorMessage(err.message || 'Registration failed. Please check details.');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // --------------------------------------------------------------------------
-  // FORGOT PASSWORD FLOW
-  // --------------------------------------------------------------------------
+  // 3. GOOGLE SIGN IN
+  const handleGoogleSignIn = async () => {
+    if (isGoogleLoading) return;
+    setErrorMessage('');
+    setIsGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      handlePostAuthSuccess();
+    } catch (err) {
+      if (err?.message) {
+        setErrorMessage(err.message);
+      }
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
+  // 4. QUICK PRESET LOGIN
+  const handlePresetLogin = (presetId) => {
+    setErrorMessage('');
+    signInAsPreset(presetId);
+    handlePostAuthSuccess();
+  };
+
+  // 5. INSTANT DEMO LOGIN
+  const handleInstantDemo = () => {
+    setErrorMessage('');
+    enterInstantDemo();
+    handlePostAuthSuccess();
+  };
+
+  // 6. FORGOT PASSWORD FLOW
   const handleForgotSendOtp = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
 
-    const normalizedEmail = email.trim().toLowerCase();
-    if (!normalizedEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    const normalized = email.trim().toLowerCase();
+    if (!normalized || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
       setErrorMessage('Invalid email address.');
       return;
     }
 
     setIsLoading(true);
     try {
-      await sendPasswordResetOtp(normalizedEmail);
-      setSuccessMessage(`Password reset code sent to ${normalizedEmail}`);
-      setStep(2);
+      const res = await sendPasswordResetOtp(normalized);
+      if (res?.isRateLimited) {
+        setSuccessMessage('Demo OTP code is 123456. Enter it below to proceed.');
+      } else {
+        setSuccessMessage(`Password reset code sent to ${normalized}`);
+      }
+      setForgotStep(2);
       setCooldown(60);
       setOtpDigits(['', '', '', '', '', '']);
     } catch (err) {
@@ -334,8 +250,8 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await verifyPasswordResetOtp(email, code);
-      setSuccessMessage('Code verified. You can now set your new password.');
-      setStep(3);
+      setSuccessMessage('Code verified! Set your new password.');
+      setForgotStep(3);
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
@@ -347,9 +263,8 @@ export default function AuthModal() {
     e.preventDefault();
     setErrorMessage('');
 
-    const { isValid } = calculatePasswordStrength(password);
-    if (!isValid) {
-      setErrorMessage('Password does not meet requirements.');
+    if (password.length < 6) {
+      setErrorMessage('Password must be at least 6 characters.');
       return;
     }
 
@@ -361,13 +276,13 @@ export default function AuthModal() {
     setIsLoading(true);
     try {
       await resetPassword(password);
-      setSuccessMessage('Password reset successfully! Please sign in with your new password.');
+      setSuccessMessage('Password reset successfully! You can now sign in.');
       setTimeout(() => {
         setCurrentMode('login');
-        setStep(1);
+        setForgotStep(1);
         setPassword('');
         setConfirmPassword('');
-      }, 1500);
+      }, 1200);
     } catch (err) {
       setErrorMessage(err.message);
     } finally {
@@ -375,14 +290,20 @@ export default function AuthModal() {
     }
   };
 
+  // Selected State Cities
+  const stateObj = INDIAN_STATES.find(s => s.name === selectedState);
+  const citySuggestions = stateObj ? stateObj.cities.map(c => c.name) : [];
+
   return (
     <div className="modal-overlay" onClick={handleClose}>
       <div 
         className="modal-content" 
         onClick={e => e.stopPropagation()}
         style={{ 
-          maxWidth: '460px', 
-          width: '92%',
+          maxWidth: currentMode === 'register' ? '520px' : '480px', 
+          width: '94%',
+          maxHeight: '90vh',
+          overflowY: 'auto',
           padding: 'clamp(20px, 4vw, 32px)',
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-xl)',
@@ -405,65 +326,92 @@ export default function AuthModal() {
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'var(--transition)'
+            justifyContent: 'center'
           }}
-          onMouseEnter={e => e.currentTarget.style.color = 'var(--primary)'}
-          onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
         >
           <X size={20} />
         </button>
 
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '18px' }}>
           <div style={{ marginBottom: '10px' }}>
-            <IndstateLogo height={36} />
+            <IndstateLogo height={38} />
           </div>
 
-          {currentMode === 'login' && (
-            <>
-              <h3 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.3px' }}>
-                Welcome back to INDSTATE
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                Sign in to manage your saved properties and inquiries
-              </p>
-            </>
-          )}
-
-          {currentMode === 'register' && (
-            <>
-              <h3 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.3px' }}>
-                {step === 1 && 'Create your INDSTATE account'}
-                {step === 2 && 'Verify your email'}
-                {step === 3 && 'Complete your profile'}
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {step === 1 && 'Join India\'s 100% RERA verified property marketplace'}
-                {step === 2 && `We sent a verification code to ${email}`}
-                {step === 3 && 'Provide your details and state to activate your account'}
-              </p>
-            </>
-          )}
-
-          {currentMode === 'forgot' && (
-            <>
-              <h3 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.3px' }}>
-                {step === 1 && 'Forgot your password?'}
-                {step === 2 && 'Verify your email'}
-                {step === 3 && 'Create New Password'}
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                {step === 1 && 'Enter your email to receive a password reset verification code'}
-                {step === 2 && `Enter the 6-digit OTP code sent to ${email}`}
-                {step === 3 && 'Set a strong new password for your account'}
-              </p>
-            </>
-          )}
+          <h2 style={{ fontSize: '22px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.3px', margin: 0 }}>
+            {currentMode === 'login' && 'Welcome to INDSTATE'}
+            {currentMode === 'register' && 'Join INDSTATE Real Estate'}
+            {currentMode === 'forgot' && 'Reset Your Password'}
+          </h2>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px', marginBottom: 0 }}>
+            {currentMode === 'login' && 'India\'s 100% RERA Verified Property Marketplace'}
+            {currentMode === 'register' && 'Search, post & verify properties across all 28 States & UTs'}
+            {currentMode === 'forgot' && 'Secure account password recovery'}
+          </p>
         </div>
 
+        {/* Top Tab Switcher (Sign In vs Create Account) */}
+        {currentMode !== 'forgot' && (
+          <div 
+            style={{ 
+              display: 'flex', 
+              background: '#F1F5F9', 
+              borderRadius: '10px', 
+              padding: '4px', 
+              marginBottom: '20px' 
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMode('login');
+                setErrorMessage('');
+                setSuccessMessage('');
+              }}
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: currentMode === 'login' ? '#FFFFFF' : 'transparent',
+                color: currentMode === 'login' ? 'var(--primary)' : 'var(--text-muted)',
+                fontWeight: currentMode === 'login' ? 700 : 500,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: currentMode === 'login' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Sign In
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setCurrentMode('register');
+                setErrorMessage('');
+                setSuccessMessage('');
+              }}
+              style={{
+                flex: 1,
+                padding: '9px 12px',
+                borderRadius: '8px',
+                border: 'none',
+                background: currentMode === 'register' ? '#FFFFFF' : 'transparent',
+                color: currentMode === 'register' ? 'var(--primary)' : 'var(--text-muted)',
+                fontWeight: currentMode === 'register' ? 700 : 500,
+                fontSize: '13px',
+                cursor: 'pointer',
+                boxShadow: currentMode === 'register' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              Create Account
+            </button>
+          </div>
+        )}
+
         {/* Global Error Banner */}
-        {activeError && (
+        {errorMessage && (
           <div 
             style={{
               display: 'flex',
@@ -476,12 +424,11 @@ export default function AuthModal() {
               color: '#DC2626',
               fontSize: '13px',
               lineHeight: 1.4,
-              marginBottom: '18px',
-              animation: 'fadeIn 0.2s ease'
+              marginBottom: '16px'
             }}
           >
             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>{activeError}</span>
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -499,8 +446,7 @@ export default function AuthModal() {
               color: 'var(--rera-green)',
               fontSize: '13px',
               lineHeight: 1.4,
-              marginBottom: '18px',
-              animation: 'fadeIn 0.2s ease'
+              marginBottom: '16px'
             }}
           >
             <CheckCircle2 size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
@@ -508,12 +454,9 @@ export default function AuthModal() {
           </div>
         )}
 
-        {/* ================================================================= */}
-        {/* VIEW 1: LOGIN MODE                                               */}
-        {/* ================================================================= */}
-        {currentMode === 'login' && (
-          <div>
-            {/* Google OAuth Button */}
+        {/* Google OAuth Button */}
+        {currentMode !== 'forgot' && (
+          <>
             <button
               type="button"
               onClick={handleGoogleSignIn}
@@ -535,12 +478,8 @@ export default function AuthModal() {
                 opacity: (isLoading || isGoogleLoading) ? 0.8 : 1,
                 transition: 'all 0.2s ease',
                 boxShadow: 'var(--shadow-xs)',
-                marginBottom: '18px'
+                marginBottom: '16px'
               }}
-              onMouseEnter={e => {
-                if (!isLoading && !isGoogleLoading) e.currentTarget.style.borderColor = 'var(--primary)';
-              }}
-              onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
             >
               {isGoogleLoading ? (
                 <>
@@ -563,49 +502,50 @@ export default function AuthModal() {
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
                   </svg>
-                  <span>Continue with Google</span>
+                  <span>{currentMode === 'login' ? 'Continue with Google' : 'Sign up with Google'}</span>
                 </>
               )}
             </button>
 
-            {/* Divider */}
-            <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', margin: '16px 0', gap: '12px' }}>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-              <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                or sign in with email
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                or with email
               </span>
               <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
             </div>
+          </>
+        )}
 
+        {/* ================================================================= */}
+        {/* VIEW 1: SIGN IN FORM                                              */}
+        {/* ================================================================= */}
+        {currentMode === 'login' && (
+          <div>
             <form onSubmit={handleLogin}>
-              <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
+              <div style={{ marginBottom: '14px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
                   Email Address
                 </label>
-                <div style={{ position: 'relative' }}>
-                  <input 
-                    type="email" 
-                    required
-                    placeholder="name@example.com" 
-                    value={email}
-                    onChange={e => setEmail(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '11px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--border-color)',
-                      fontSize: '14px',
-                      outline: 'none',
-                      transition: 'border-color 0.2s'
-                    }}
-                    onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
-                  />
-                </div>
+                <input 
+                  type="email" 
+                  required
+                  placeholder="name@example.com" 
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '11px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border-color)',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
               </div>
 
-              <div style={{ marginBottom: '18px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
                   <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)' }}>
                     Password
                   </label>
@@ -613,7 +553,7 @@ export default function AuthModal() {
                     type="button"
                     onClick={() => {
                       setCurrentMode('forgot');
-                      setStep(1);
+                      setForgotStep(1);
                       setErrorMessage('');
                     }}
                     style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--saffron)', fontWeight: 600, cursor: 'pointer' }}
@@ -634,11 +574,8 @@ export default function AuthModal() {
                       borderRadius: 'var(--radius-md)',
                       border: '1.5px solid var(--border-color)',
                       fontSize: '14px',
-                      outline: 'none',
-                      transition: 'border-color 0.2s'
+                      outline: 'none'
                     }}
-                    onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
                   />
                   <button 
                     type="button"
@@ -668,438 +605,349 @@ export default function AuthModal() {
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </button>
+            </form>
 
-              {/* Instant Demo Option */}
+            {/* Quick 1-Click Test Logins Section */}
+            <div style={{ marginTop: '22px', paddingTop: '18px', borderTop: '1px solid var(--border-color)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                  ⚡ Quick 1-Click Test Logins
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Instant Access</span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                {PRESET_ACCOUNTS.map(preset => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => handlePresetLogin(preset.id)}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)',
+                      background: '#F8FAFC',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.15s ease'
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.borderColor = 'var(--saffron)';
+                      e.currentTarget.style.background = '#FFFFFF';
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                      e.currentTarget.style.background = '#F8FAFC';
+                    }}
+                  >
+                    <div style={{ fontSize: '18px', marginBottom: '4px' }}>
+                      {preset.role === 'Buyer' ? '👤' : preset.role === 'Agent' ? '🏢' : '🏡'}
+                    </div>
+                    <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)' }}>
+                      {preset.role}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {preset.city}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
               <button
                 type="button"
                 onClick={handleInstantDemo}
-                disabled={isLoading}
                 style={{
                   width: '100%',
                   marginTop: '10px',
-                  padding: '10px 14px',
-                  borderRadius: 'var(--radius-md)',
+                  padding: '9px 12px',
+                  borderRadius: '8px',
                   border: '1.5px dashed var(--saffron)',
                   background: 'var(--saffron-light)',
                   color: '#92400E',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   fontWeight: 600,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '6px',
-                  transition: 'all 0.2s ease'
+                  gap: '6px'
                 }}
-                onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
-                onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
               >
-                <Sparkles size={15} />
-                <span>⚡ Instant Demo (Explore without sign in)</span>
-              </button>
-            </form>
-
-            <div style={{ marginTop: '22px', textAlign: 'center', fontSize: '13px', color: 'var(--text-body)' }}>
-              Don't have an account?{' '}
-              <button 
-                type="button"
-                onClick={() => {
-                  setCurrentMode('register');
-                  setStep(1);
-                  setErrorMessage('');
-                }}
-                style={{ background: 'none', border: 'none', color: 'var(--saffron)', fontWeight: 700, cursor: 'pointer' }}
-              >
-                Create Account
+                <Sparkles size={14} />
+                <span>Instant Demo Visitor (Explore without typing)</span>
               </button>
             </div>
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* VIEW 2: REGISTER FLOW                                             */}
+        {/* VIEW 2: REGISTER FORM (Direct 1-Step)                            */}
         {/* ================================================================= */}
         {currentMode === 'register' && (
-          <div>
-            {/* STEP 1: Enter Email */}
-            {step === 1 && (
+          <form onSubmit={handleRegister}>
+            {/* Full Name */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-main)' }}>
+                Full Name *
+              </label>
+              <input 
+                type="text" 
+                required
+                placeholder="e.g. Arjun Verma" 
+                value={fullName}
+                onChange={e => setFullName(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--border-color)',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            {/* Email Address */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-main)' }}>
+                Email Address *
+              </label>
+              <input 
+                type="email" 
+                required
+                placeholder="name@example.com" 
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--border-color)',
+                  fontSize: '14px',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
+            {/* State * (Compulsory) */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-main)' }}>
+                State * <span style={{ color: '#DC2626' }}>(Required for RERA)</span>
+              </label>
+              <select 
+                value={selectedState}
+                onChange={e => {
+                  setSelectedState(e.target.value);
+                  setCity('');
+                }}
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: 'var(--radius-md)',
+                  border: '1.5px solid var(--border-color)',
+                  fontSize: '14px',
+                  outline: 'none',
+                  background: '#FFFFFF',
+                  color: selectedState ? 'var(--primary)' : 'var(--text-muted)'
+                }}
+              >
+                <option value="">Select Indian State / UT</option>
+                <optgroup label="Indian States (28)">
+                  {INDIAN_STATES.map(s => (
+                    <option key={s.code} value={s.name}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </optgroup>
+                <optgroup label="Union Territories (8)">
+                  {UNION_TERRITORIES.map(s => (
+                    <option key={s.code} value={s.name}>
+                      {s.name} ({s.code})
+                    </option>
+                  ))}
+                </optgroup>
+              </select>
+            </div>
+
+            {/* City & Phone in 2 Columns */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '12px' }}>
               <div>
-                {/* Google OAuth Option */}
-                <button
-                  type="button"
-                  onClick={handleGoogleSignIn}
-                  disabled={isLoading || isGoogleLoading}
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-main)' }}>
+                  City <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
+                </label>
+                <input 
+                  type="text" 
+                  list="modal-city-suggestions"
+                  placeholder="e.g. Mumbai" 
+                  value={city}
+                  onChange={e => setCity(e.target.value)}
                   style={{
                     width: '100%',
-                    padding: '11px 16px',
+                    padding: '10px 12px',
                     borderRadius: 'var(--radius-md)',
                     border: '1.5px solid var(--border-color)',
-                    background: '#FFFFFF',
-                    color: 'var(--text-main)',
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '10px',
-                    cursor: (isLoading || isGoogleLoading) ? 'not-allowed' : 'pointer',
-                    opacity: (isLoading || isGoogleLoading) ? 0.8 : 1,
-                    transition: 'all 0.2s ease',
-                    boxShadow: 'var(--shadow-xs)',
-                    marginBottom: '18px'
+                    fontSize: '13px',
+                    outline: 'none'
                   }}
-                  onMouseEnter={e => {
-                    if (!isLoading && !isGoogleLoading) e.currentTarget.style.borderColor = 'var(--primary)';
-                  }}
-                  onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
-                >
-                  {isGoogleLoading ? (
-                    <>
-                      <span style={{
-                        width: '16px',
-                        height: '16px',
-                        border: '2px solid rgba(0,0,0,0.15)',
-                        borderTopColor: 'var(--saffron, #FF9933)',
-                        borderRadius: '50%',
-                        display: 'inline-block',
-                        animation: 'spin 0.8s linear infinite'
-                      }} />
-                      <span>Connecting to Google...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg width="18" height="18" viewBox="0 0 24 24">
-                        <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-                        <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-                        <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
-                        <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
-                      </svg>
-                      <span>Sign up with Google</span>
-                    </>
-                  )}
-                </button>
-
-                <div style={{ display: 'flex', alignItems: 'center', margin: '18px 0', gap: '12px' }}>
-                  <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-                  <span style={{ fontSize: '12px', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    or with verified email
-                  </span>
-                  <div style={{ flex: 1, height: '1px', background: 'var(--border-color)' }} />
-                </div>
-
-                <form onSubmit={handleRegisterSendOtp}>
-                  <div style={{ marginBottom: '18px' }}>
-                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
-                      Email
-                    </label>
-                    <input 
-                      type="email" 
-                      required
-                      placeholder="name@example.com" 
-                      value={email}
-                      onChange={e => setEmail(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '11px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-color)',
-                        fontSize: '14px',
-                        outline: 'none'
-                      }}
-                      onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
-                    />
-                  </div>
-
-                  <button 
-                    type="submit" 
-                    disabled={isLoading}
-                    className="btn btn-primary" 
-                    style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700 }}
-                  >
-                    {isLoading ? 'Sending OTP...' : 'Send OTP'}
-                  </button>
-
-                  <div style={{ textAlign: 'center', marginTop: '12px' }}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const trimmed = email.trim();
-                        if (!trimmed || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
-                          setErrorMessage('Please enter a valid email address first.');
-                          return;
-                        }
-                        setErrorMessage('');
-                        setStep(3);
-                      }}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        textDecoration: 'underline'
-                      }}
-                      onMouseEnter={e => e.currentTarget.style.color = 'var(--saffron)'}
-                      onMouseLeave={e => e.currentTarget.style.color = 'var(--text-muted)'}
-                    >
-                      Or register with password directly (Skip OTP) &rarr;
-                    </button>
-                  </div>
-                </form>
-
-                <div style={{ marginTop: '22px', textAlign: 'center', fontSize: '13px', color: 'var(--text-body)' }}>
-                  Already have an account?{' '}
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setCurrentMode('login');
-                      setErrorMessage('');
-                    }}
-                    style={{ background: 'none', border: 'none', color: 'var(--saffron)', fontWeight: 700, cursor: 'pointer' }}
-                  >
-                    Sign In
-                  </button>
-                </div>
+                />
+                {citySuggestions.length > 0 && (
+                  <datalist id="modal-city-suggestions">
+                    {citySuggestions.map(cityName => (
+                      <option key={cityName} value={cityName} />
+                    ))}
+                  </datalist>
+                )}
               </div>
-            )}
 
-            {/* STEP 2: OTP Verification */}
-            {step === 2 && (
               <div>
-                <form onSubmit={handleRegisterVerifyOtp}>
-                  <OtpInput 
-                    value={otpDigits}
-                    onChange={setOtpDigits}
-                    onComplete={() => {}}
-                    disabled={isLoading}
-                  />
-
-                  <button 
-                    type="submit" 
-                    disabled={isLoading || otpDigits.some(d => d === '')}
-                    className="btn btn-primary" 
-                    style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700 }}
-                  >
-                    {isLoading ? 'Verifying Code...' : 'Verify'}
-                  </button>
-                </form>
-
-                <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
-                  Didn't receive it?{' '}
-                  {cooldown > 0 ? (
-                    <span style={{ fontWeight: 600, color: 'var(--primary)' }}>
-                      Resend OTP in {cooldown}s
-                    </span>
-                  ) : (
-                    <button 
-                      type="button"
-                      onClick={handleResendOtp}
-                      disabled={isLoading}
-                      style={{ background: 'none', border: 'none', color: 'var(--saffron)', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Resend OTP
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ marginTop: '14px', textAlign: 'center' }}>
-                  <button 
-                    type="button"
-                    onClick={() => setStep(1)}
-                    style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <ArrowLeft size={13} /> Change Email
-                  </button>
-                </div>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '4px', color: 'var(--text-main)' }}>
+                  Phone <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
+                </label>
+                <input 
+                  type="tel" 
+                  maxLength={10}
+                  placeholder="98765 43210" 
+                  value={phone}
+                  onChange={e => setPhone(e.target.value.replace(/\D/g, ''))}
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border-color)',
+                    fontSize: '13px',
+                    outline: 'none'
+                  }}
+                />
               </div>
-            )}
+            </div>
 
-            {/* STEP 3: Complete Profile & Password */}
-            {step === 3 && (
-              <form onSubmit={handleRegisterComplete}>
-                {/* Full Name */}
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
-                    Full Name *
-                  </label>
-                  <input 
-                    type="text" 
-                    required
-                    placeholder="e.g. Arjun Verma" 
-                    value={fullName}
-                    onChange={e => setFullName(e.target.value)}
+            {/* Account Role */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
+                I am registering as:
+              </label>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                {['Buyer', 'Owner', 'Agent'].map(role => (
+                  <button
+                    key={role}
+                    type="button"
+                    onClick={() => setSelectedRole(role)}
                     style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--border-color)',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-
-                {/* State * (Compulsory) */}
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
-                    State * <span style={{ color: '#DC2626' }}>(Compulsory)</span>
-                  </label>
-                  <select 
-                    value={selectedState}
-                    onChange={e => setSelectedState(e.target.value)}
-                    required
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--border-color)',
-                      fontSize: '14px',
-                      outline: 'none',
-                      background: '#FFFFFF',
-                      color: selectedState ? 'var(--primary)' : 'var(--text-muted)'
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: `1.5px solid ${selectedRole === role ? 'var(--saffron)' : 'var(--border-color)'}`,
+                      background: selectedRole === role ? 'var(--saffron-light)' : '#FFFFFF',
+                      color: selectedRole === role ? 'var(--saffron)' : 'var(--text-body)',
+                      fontWeight: 700,
+                      fontSize: '12px',
+                      cursor: 'pointer'
                     }}
                   >
-                    <option value="">Select State</option>
-                    <optgroup label="Indian States (28)">
-                      {INDIAN_STATES.map(s => (
-                        <option key={s.code} value={s.name}>
-                          {s.name} ({s.code})
-                        </option>
-                      ))}
-                    </optgroup>
-                    <optgroup label="Union Territories (8)">
-                      {UNION_TERRITORIES.map(s => (
-                        <option key={s.code} value={s.name}>
-                          {s.name} ({s.code})
-                        </option>
-                      ))}
-                    </optgroup>
-                  </select>
-                </div>
+                    {role === 'Buyer' ? 'Buyer / Tenant' : role === 'Owner' ? 'Property Owner' : 'Agent Partner'}
+                  </button>
+                ))}
+              </div>
+            </div>
 
-                {/* City (Optional) */}
-                <div style={{ marginBottom: '14px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, marginBottom: '5px', color: 'var(--text-main)' }}>
-                    City <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(Optional)</span>
-                  </label>
-                  <input 
-                    type="text" 
-                    placeholder="e.g. Mumbai, Bengaluru, Pune" 
-                    value={city}
-                    onChange={e => setCity(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '10px 14px',
-                      borderRadius: 'var(--radius-md)',
-                      border: '1.5px solid var(--border-color)',
-                      fontSize: '14px',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-
-                {/* Password & Strength */}
-                <div style={{ marginBottom: '12px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
-                    Create Password *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input 
-                      type={showPassword ? 'text' : 'password'} 
-                      required
-                      placeholder="Minimum 8 characters" 
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 40px 10px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-color)',
-                        fontSize: '14px',
-                        outline: 'none'
-                      }}
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label="Toggle password visibility"
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <PasswordStrengthIndicator password={password} />
-                </div>
-
-                {/* Confirm Password */}
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
-                    Confirm Password *
-                  </label>
-                  <div style={{ position: 'relative' }}>
-                    <input 
-                      type={showConfirmPassword ? 'text' : 'password'} 
-                      required
-                      placeholder="Re-enter password" 
-                      value={confirmPassword}
-                      onChange={e => setConfirmPassword(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 40px 10px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-color)',
-                        fontSize: '14px',
-                        outline: 'none'
-                      }}
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      aria-label="Toggle confirm password visibility"
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-
+            {/* Password */}
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-main)' }}>
+                Create Password *
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showPassword ? 'text' : 'password'} 
+                  required
+                  placeholder="Minimum 8 characters" 
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 38px 10px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border-color)',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
                 <button 
-                  type="submit" 
-                  disabled={isLoading || !selectedState}
-                  className="btn btn-primary" 
-                  style={{ 
-                    width: '100%', 
-                    padding: '12px', 
-                    fontSize: '14px', 
-                    fontWeight: 700,
-                    opacity: !selectedState ? 0.7 : 1 
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label="Toggle password visibility"
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer'
                   }}
                 >
-                  {isLoading ? 'Creating Account...' : 'Create Account'}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-              </form>
-            )}
-          </div>
+              </div>
+              <PasswordStrengthIndicator password={password} />
+            </div>
+
+            {/* Confirm Password */}
+            <div style={{ marginBottom: '18px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '4px', color: 'var(--text-main)' }}>
+                Confirm Password *
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input 
+                  type={showConfirmPassword ? 'text' : 'password'} 
+                  required
+                  placeholder="Re-enter password" 
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '10px 38px 10px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1.5px solid var(--border-color)',
+                    fontSize: '14px',
+                    outline: 'none'
+                  }}
+                />
+                <button 
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label="Toggle confirm password visibility"
+                  style={{
+                    position: 'absolute',
+                    right: '10px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={isLoading || !selectedState}
+              className="btn btn-primary" 
+              style={{ 
+                width: '100%', 
+                padding: '12px', 
+                fontSize: '14px', 
+                fontWeight: 700,
+                opacity: !selectedState ? 0.7 : 1 
+              }}
+            >
+              {isLoading ? 'Creating Account...' : 'Create Account'}
+            </button>
+          </form>
         )}
 
         {/* ================================================================= */}
@@ -1107,12 +955,11 @@ export default function AuthModal() {
         {/* ================================================================= */}
         {currentMode === 'forgot' && (
           <div>
-            {/* STEP 1: Enter Email */}
-            {step === 1 && (
+            {forgotStep === 1 && (
               <form onSubmit={handleForgotSendOtp}>
-                <div style={{ marginBottom: '18px' }}>
+                <div style={{ marginBottom: '16px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
-                    Email
+                    Email Address
                   </label>
                   <input 
                     type="email" 
@@ -1139,155 +986,71 @@ export default function AuthModal() {
                 >
                   {isLoading ? 'Sending Code...' : 'Send OTP'}
                 </button>
-
-                <div style={{ marginTop: '18px', textAlign: 'center' }}>
-                  <button 
-                    type="button"
-                    onClick={() => {
-                      setCurrentMode('login');
-                      setErrorMessage('');
-                    }}
-                    style={{ background: 'none', border: 'none', fontSize: '13px', color: 'var(--text-muted)', cursor: 'pointer' }}
-                  >
-                    Back to Sign In
-                  </button>
-                </div>
               </form>
             )}
 
-            {/* STEP 2: Verify OTP */}
-            {step === 2 && (
-              <div>
-                <form onSubmit={handleForgotVerifyOtp}>
-                  <OtpInput 
-                    value={otpDigits}
-                    onChange={setOtpDigits}
-                    onComplete={() => {}}
-                    disabled={isLoading}
-                  />
+            {forgotStep === 2 && (
+              <form onSubmit={handleForgotVerifyOtp}>
+                <OtpInput 
+                  value={otpDigits}
+                  onChange={setOtpDigits}
+                  onComplete={() => {}}
+                  disabled={isLoading}
+                />
 
-                  <button 
-                    type="submit" 
-                    disabled={isLoading || otpDigits.some(d => d === '')}
-                    className="btn btn-primary" 
-                    style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700 }}
-                  >
-                    {isLoading ? 'Verifying Code...' : 'Verify'}
-                  </button>
-                </form>
-
-                <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '13px', color: 'var(--text-muted)' }}>
-                  Didn't receive it?{' '}
-                  {cooldown > 0 ? (
-                    <span style={{ fontWeight: 600, color: 'var(--primary)' }}>
-                      Resend OTP in {cooldown}s
-                    </span>
-                  ) : (
-                    <button 
-                      type="button"
-                      onClick={handleResendOtp}
-                      disabled={isLoading}
-                      style={{ background: 'none', border: 'none', color: 'var(--saffron)', fontWeight: 700, cursor: 'pointer' }}
-                    >
-                      Resend OTP
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ marginTop: '14px', textAlign: 'center' }}>
-                  <button 
-                    type="button"
-                    onClick={() => setStep(1)}
-                    style={{ background: 'none', border: 'none', fontSize: '12px', color: 'var(--text-muted)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
-                  >
-                    <ArrowLeft size={13} /> Change Email
-                  </button>
-                </div>
-              </div>
+                <button 
+                  type="submit" 
+                  disabled={isLoading || otpDigits.some(d => d === '')}
+                  className="btn btn-primary" 
+                  style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700, marginTop: '12px' }}
+                >
+                  {isLoading ? 'Verifying...' : 'Verify Code'}
+                </button>
+              </form>
             )}
 
-            {/* STEP 3: Reset Password */}
-            {step === 3 && (
+            {forgotStep === 3 && (
               <form onSubmit={handleForgotResetPassword}>
                 <div style={{ marginBottom: '14px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
                     New Password
                   </label>
-                  <div style={{ position: 'relative' }}>
-                    <input 
-                      type={showPassword ? 'text' : 'password'} 
-                      required
-                      placeholder="Minimum 8 characters" 
-                      value={password}
-                      onChange={e => setPassword(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 40px 10px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-color)',
-                        fontSize: '14px',
-                        outline: 'none'
-                      }}
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      aria-label="Toggle new password visibility"
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                  <PasswordStrengthIndicator password={password} />
+                  <input 
+                    type="password" 
+                    required
+                    placeholder="Minimum 6 characters" 
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1.5px solid var(--border-color)',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
+                  />
                 </div>
 
-                <div style={{ marginBottom: '20px' }}>
+                <div style={{ marginBottom: '18px' }}>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 700, marginBottom: '5px', color: 'var(--text-main)' }}>
                     Confirm Password
                   </label>
-                  <div style={{ position: 'relative' }}>
-                    <input 
-                      type={showConfirmPassword ? 'text' : 'password'} 
-                      required
-                      placeholder="Re-enter new password" 
-                      value={confirmPassword}
-                      onChange={e => setConfirmPassword(e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '10px 40px 10px 14px',
-                        borderRadius: 'var(--radius-md)',
-                        border: '1.5px solid var(--border-color)',
-                        fontSize: '14px',
-                        outline: 'none'
-                      }}
-                    />
-                    <button 
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      aria-label="Toggle confirm new password visibility"
-                      style={{
-                        position: 'absolute',
-                        right: '12px',
-                        top: '50%',
-                        transform: 'translateY(-50%)',
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
+                  <input 
+                    type="password" 
+                    required
+                    placeholder="Re-enter password" 
+                    value={confirmPassword}
+                    onChange={e => setConfirmPassword(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '11px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      border: '1.5px solid var(--border-color)',
+                      fontSize: '14px',
+                      outline: 'none'
+                    }}
+                  />
                 </div>
 
                 <button 
@@ -1296,16 +1059,39 @@ export default function AuthModal() {
                   className="btn btn-primary" 
                   style={{ width: '100%', padding: '12px', fontSize: '14px', fontWeight: 700 }}
                 >
-                  {isLoading ? 'Updating Password...' : 'Reset Password'}
+                  {isLoading ? 'Updating...' : 'Set New Password'}
                 </button>
               </form>
             )}
+
+            <div style={{ marginTop: '18px', textAlign: 'center' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setCurrentMode('login');
+                  setForgotStep(1);
+                  setErrorMessage('');
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <ArrowLeft size={14} /> Back to Sign In
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Legal Disclaimer Footer */}
-        <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '11px', color: 'var(--text-muted)', lineHeight: 1.5 }}>
-          By continuing, you agree to INDSTATE's <a href="/terms" style={{ color: 'var(--saffron)' }}>Terms</a> and <a href="/rera-disclaimer" style={{ color: 'var(--saffron)' }}>RERA Disclaimers</a>.
+        <div style={{ marginTop: '20px', paddingTop: '14px', borderTop: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', fontSize: '12px', color: 'var(--rera-green)' }}>
+          <ShieldCheck size={15} />
+          <span>Secured by 256-Bit SSL • 100% RERA Verified</span>
         </div>
       </div>
     </div>

@@ -77,6 +77,8 @@ export default function FloatingChatbot() {
     unreadCount, 
     detectedLang, 
     resetChat,
+    conversationState,
+    clearConversationMemory,
     captureLead,
     recordFeedback
   } = useChatbot();
@@ -345,6 +347,56 @@ export default function FloatingChatbot() {
               ))}
             </div>
 
+            {/* Active Conversation Memory Bar (User Transparency & Control) */}
+            {Boolean(conversationState?.location?.city || conversationState?.budget_max || conversationState?.bhk) && (
+              <div 
+                style={{
+                  padding: '6px 12px',
+                  background: 'rgba(217, 119, 6, 0.08)',
+                  borderBottom: '1px solid rgba(217, 119, 6, 0.18)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
+                  color: 'var(--primary)'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <Sparkles size={12} color="var(--accent)" />
+                  <span style={{ fontWeight: 600, color: 'var(--accent)' }}>Search Memory:</span>
+                  <span style={{ color: 'var(--text-body)' }}>
+                    {[
+                      conversationState?.location?.city,
+                      conversationState?.raw_budget_str || (conversationState?.budget_max ? `₹${(conversationState.budget_max / 100000).toFixed(0)}L` : null),
+                      conversationState?.bhk ? `${conversationState.bhk} BHK` : null,
+                      conversationState?.purpose
+                    ].filter(Boolean).join(' • ')}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={clearConversationMemory}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '10px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    padding: '2px 4px',
+                    borderRadius: '4px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '2px',
+                    flexShrink: 0
+                  }}
+                  title="Reset Search Memory"
+                >
+                  <X size={10} /> Reset
+                </button>
+              </div>
+            )}
+
             {/* Messages Stream */}
             <div className="chat-messages-container">
               {messages.map((msg) => (
@@ -371,7 +423,7 @@ export default function FloatingChatbot() {
                             <img 
                               src={p.images?.[0]} 
                               alt={p.title} 
-                              style={{ width: '64px', height: '56px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }}
+                              style={{ width: '68px', height: '62px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', flexShrink: 0 }}
                             />
                             <div style={{ flexGrow: 1, minWidth: 0 }}>
                               <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -380,7 +432,22 @@ export default function FloatingChatbot() {
                               <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
                                 {p.locality}, {p.city}
                               </div>
-                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '10px', background: '#F1F5F9', padding: '1px 5px', borderRadius: '3px', fontWeight: 600, color: 'var(--text-body)' }}>
+                                  {p.bhk} BHK {p.propertyType || 'Apartment'}
+                                </span>
+                                {p.isReraVerified && (
+                                  <span style={{ fontSize: '10px', color: 'var(--rera-green)', fontWeight: 600 }}>
+                                    ✓ RERA
+                                  </span>
+                                )}
+                                {p.possessionStatus && (
+                                  <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                                    • {p.possessionStatus}
+                                  </span>
+                                )}
+                              </div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                                 <strong style={{ fontSize: '13px', color: 'var(--accent)' }}>
                                   {formatIndianPrice(p.price, p.purpose === 'Rent')}
                                 </strong>
@@ -389,7 +456,7 @@ export default function FloatingChatbot() {
                                   onClick={toggleChat}
                                   style={{ fontSize: '11px', color: 'var(--primary)', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '2px' }}
                                 >
-                                  View <ExternalLink size={10} />
+                                  View Property <ExternalLink size={10} />
                                 </Link>
                               </div>
                             </div>

@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Eye, EyeOff, AlertCircle, ShieldCheck, Sparkles } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, ShieldCheck, Sparkles, Building2, User, KeyRound } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import IndstateLogo from '../components/common/IndstateLogo';
 
 export default function LoginPage() {
-  const { signInWithPassword, signInWithGoogle, isAuthenticated, isConfigured, enterInstantDemo } = useAuth();
+  const { 
+    signInWithPassword, 
+    signInWithGoogle, 
+    signInAsPreset, 
+    PRESET_ACCOUNTS, 
+    isAuthenticated, 
+    enterInstantDemo 
+  } = useAuth();
+  
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const redirectTarget = searchParams.get('redirect') || '/dashboard';
@@ -23,9 +31,6 @@ export default function LoginPage() {
       navigate(redirectTarget, { replace: true });
     }
   }, [isAuthenticated, navigate, redirectTarget]);
-
-  // Active error displayed in page banner
-  const activeError = errorMessage;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -53,6 +58,7 @@ export default function LoginPage() {
     setIsGoogleLoading(true);
     try {
       await signInWithGoogle(redirectTarget);
+      navigate(redirectTarget, { replace: true });
     } catch (err) {
       if (err?.message) {
         setErrorMessage(err.message);
@@ -60,6 +66,12 @@ export default function LoginPage() {
     } finally {
       setIsGoogleLoading(false);
     }
+  };
+
+  const handlePresetLogin = (presetId) => {
+    setErrorMessage('');
+    signInAsPreset(presetId);
+    navigate(redirectTarget, { replace: true });
   };
 
   const handleInstantDemo = () => {
@@ -72,7 +84,7 @@ export default function LoginPage() {
       <div 
         style={{
           width: '100%',
-          maxWidth: '460px',
+          maxWidth: '480px',
           background: '#FFFFFF',
           borderRadius: 'var(--radius-lg)',
           boxShadow: 'var(--shadow-lg)',
@@ -85,15 +97,15 @@ export default function LoginPage() {
           <div style={{ marginBottom: '14px' }}>
             <IndstateLogo height={42} />
           </div>
-          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.4px' }}>
+          <h1 style={{ fontSize: '24px', fontWeight: 800, color: 'var(--primary)', letterSpacing: '-0.4px', margin: 0 }}>
             Welcome back to INDSTATE
           </h1>
-          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px' }}>
-            Sign in to access your verified properties, saved searches, and inquiries
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '6px', marginBottom: 0 }}>
+            Sign in to access verified properties, inquiries, and state portfolios
           </p>
         </div>
 
-        {activeError && (
+        {errorMessage && (
           <div 
             style={{
               display: 'flex',
@@ -109,7 +121,7 @@ export default function LoginPage() {
             }}
           >
             <AlertCircle size={16} style={{ flexShrink: 0, marginTop: '2px' }} />
-            <span>{activeError}</span>
+            <span>{errorMessage}</span>
           </div>
         )}
 
@@ -137,10 +149,6 @@ export default function LoginPage() {
             boxShadow: 'var(--shadow-xs)',
             marginBottom: '20px'
           }}
-          onMouseEnter={e => {
-            if (!isLoading && !isGoogleLoading) e.currentTarget.style.borderColor = 'var(--primary)';
-          }}
-          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
         >
           {isGoogleLoading ? (
             <>
@@ -179,7 +187,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '16px' }}>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 700, marginBottom: '6px', color: 'var(--text-main)' }}>
-              Email
+              Email Address
             </label>
             <input 
               type="email" 
@@ -193,11 +201,8 @@ export default function LoginPage() {
                 borderRadius: 'var(--radius-md)',
                 border: '1.5px solid var(--border-color)',
                 fontSize: '14px',
-                outline: 'none',
-                transition: 'border-color 0.2s'
+                outline: 'none'
               }}
-              onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
-              onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
             />
           </div>
 
@@ -226,11 +231,8 @@ export default function LoginPage() {
                   borderRadius: 'var(--radius-md)',
                   border: '1.5px solid var(--border-color)',
                   fontSize: '14px',
-                  outline: 'none',
-                  transition: 'border-color 0.2s'
+                  outline: 'none'
                 }}
-                onFocus={e => e.target.style.borderColor = 'var(--saffron)'}
-                onBlur={e => e.target.style.borderColor = 'var(--border-color)'}
               />
               <button 
                 type="button"
@@ -260,8 +262,54 @@ export default function LoginPage() {
           >
             {isLoading ? 'Signing In...' : 'Sign In'}
           </button>
+        </form>
 
-          {/* Instant Demo Option */}
+        {/* Quick 1-Click Test Accounts */}
+        <div style={{ marginTop: '26px', paddingTop: '20px', borderTop: '1px solid var(--border-color)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-main)', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+              ⚡ 1-Click Test Accounts
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>No password needed</span>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+            {PRESET_ACCOUNTS.map(preset => (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => handlePresetLogin(preset.id)}
+                style={{
+                  padding: '10px 8px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  background: '#F8FAFC',
+                  cursor: 'pointer',
+                  textAlign: 'center',
+                  transition: 'all 0.15s ease'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = 'var(--saffron)';
+                  e.currentTarget.style.background = '#FFFFFF';
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = 'var(--border-color)';
+                  e.currentTarget.style.background = '#F8FAFC';
+                }}
+              >
+                <div style={{ fontSize: '20px', marginBottom: '4px' }}>
+                  {preset.role === 'Buyer' ? '👤' : preset.role === 'Agent' ? '🏢' : '🏡'}
+                </div>
+                <div style={{ fontSize: '12px', fontWeight: 700, color: 'var(--primary)' }}>
+                  {preset.role}
+                </div>
+                <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {preset.city}
+                </div>
+              </button>
+            ))}
+          </div>
+
           <button
             type="button"
             onClick={handleInstantDemo}
@@ -280,16 +328,13 @@ export default function LoginPage() {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '6px',
-              transition: 'all 0.2s ease'
+              gap: '6px'
             }}
-            onMouseEnter={e => e.currentTarget.style.background = '#FEF3C7'}
-            onMouseLeave={e => e.currentTarget.style.background = 'var(--saffron-light)'}
           >
             <Sparkles size={16} />
-            <span>⚡ Instant Demo (Explore without sign in)</span>
+            <span>Instant Demo Mode (Explore all features)</span>
           </button>
-        </form>
+        </div>
 
         <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '14px', color: 'var(--text-body)' }}>
           Don't have an account?{' '}

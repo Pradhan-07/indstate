@@ -3,7 +3,14 @@ import { detectLanguage } from '../utils/languageDetector';
 import { synthesizeRAGResponse, buildEntryVector } from '../utils/vectorSearchEngine';
 import { INITIAL_RAG_KNOWLEDGE_BASE } from '../data/ragKnowledgeBase';
 import { useProperty } from './PropertyContext';
+import { useAuth } from './AuthContext';
 import { triggerCallNotification } from '../services/leadNotificationService';
+import { 
+  processConversationalMessage, 
+  getInitialConversationState, 
+  STORAGE_CONV_STATE_KEY,
+  STORAGE_USER_PREF_KEY 
+} from '../services/aiChatbotService';
 
 const ChatbotContext = createContext();
 
@@ -16,10 +23,79 @@ const STORAGE_INTERACTED_KEY = 'indstate_chatbot_interacted_v2';
 
 export function ChatbotProvider({ children }) {
   const { properties, submitInquiry } = useProperty();
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
   const [unreadCount, setUnreadCount] = useState(1);
   const [detectedLang, setDetectedLang] = useState('en'); // 'en' | 'hinglish'
+
+  // Structured multi-turn conversation state
+  const [conversationState, setConversationState] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_CONV_STATE_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return getInitialConversationState();
+  });
+
+  // Long-term user property search preferences
+  const [userPreferences, setUserPreferences] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_USER_PREF_KEY);
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      preferred_city: null,
+      preferred_state: null,
+      budget_range: null,
+      preferred_bhk: null,
+      property_type: null,
+      purpose: null
+    };
+  });
+
+  const saveUserPreference = (prefs) => {
+    setUserPreferences(prev => {
+      const updated = { ...prev, ...prefs };
+      try {
+        localStorage.setItem(STORAGE_USER_PREF_KEY, JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const clearUserPreferences = () => {
+    const empty = {
+      preferred_city: null,
+      preferred_state: null,
+      budget_range: null,
+      preferred_bhk: null,
+      property_type: null,
+      purpose: null
+    };
+    setUserPreferences(empty);
+    try {
+      localStorage.removeItem(STORAGE_USER_PREF_KEY);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const clearConversationMemory = () => {
+    const fresh = getInitialConversationState();
+    setConversationState(fresh);
+    try {
+      sessionStorage.removeItem(STORAGE_CONV_STATE_KEY);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   // Track if user has interacted with the chatbot in this session
   const [hasInteracted, setHasInteracted] = useState(() => {
@@ -282,7 +358,7 @@ export function ChatbotProvider({ children }) {
     setKnowledgeBase(prev => prev.filter(item => item.id !== id));
   };
 
-  // Send Message with RAG Engine
+  // Send Message with AI Conversational Engine & RAG Fallback
   const sendMessage = (userInput) => {
     if (!userInput || !userInput.trim()) return;
 
@@ -301,8 +377,62 @@ export function ChatbotProvider({ children }) {
     setMessages(prev => [...prev, userMsg]);
     setIsTyping(true);
 
-    // Natural RAG retrieval + generation delay
+    // Natural processing & synthesis delay
     setTimeout(() => {
+      // 1. Try Human-like Conversational AI Brain (Multi-turn slot filling, property queries, RERA, due diligence)
+      const convResult = processConversationalMessage({
+        message: userInput,
+        conversationHistory: messages,
+        conversationState,
+        allProperties: properties,
+        userProfile: user
+      });
+
+      if (convResult) {
+        setConversationState(convResult.state);
+        try {
+          sessionStorage.setItem(STORAGE_CONV_STATE_KEY, JSON.stringify(convResult.state));
+        } catch (e) {
+          console.error(e);
+        }
+
+        // Sync long-term user preferences if authenticated / extracted
+        if (convResult.state.location.city || convResult.state.budget_max || convResult.state.bhk) {
+          saveUserPreference({
+            preferred_city: convResult.state.location.city || userPreferences.preferred_city,
+            preferred_state: convResult.state.location.state || userPreferences.preferred_state,
+            budget_range: convResult.state.raw_budget_str || userPreferences.budget_range,
+            preferred_bhk: convResult.state.bhk || userPreferences.preferred_bhk,
+            property_type: convResult.state.property_type || userPreferences.property_type,
+            purpose: convResult.state.purpose || userPreferences.purpose
+          });
+        }
+
+        const botMsg = {
+          id: `bot-${Date.now()}`,
+          sender: "bot",
+          text: convResult.text,
+          type: convResult.type,
+          properties: convResult.properties || [],
+          quickReplies: convResult.quickReplies || [],
+          action: convResult.action || null,
+          fallback: false,
+          category: convResult.type || 'ai_assistant',
+          language: lang,
+          queryRef: userInput.trim(),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+
+        setMessages(prev => [...prev, botMsg]);
+        setIsTyping(false);
+
+        if (!isOpen) {
+          setUnreadCount(prev => prev + 1);
+        }
+        return;
+      }
+
+      // 2. Fall back to existing RAG Knowledge Base if not handled by conversational brain
       const ragResult = synthesizeRAGResponse({
         userMessage: userInput,
         knowledgeBase,
@@ -344,14 +474,15 @@ export function ChatbotProvider({ children }) {
       if (!isOpen) {
         setUnreadCount(prev => prev + 1);
       }
-    }, 650);
+    }, 600);
   };
 
   const resetChat = () => {
+    clearConversationMemory();
     const welcome = {
       id: `msg-${Date.now()}`,
       sender: "bot",
-      text: "Namaste! Chat has been refreshed. How can I assist your property search today?",
+      text: "Namaste! Chat and search memory have been refreshed. How can I assist your property journey today?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       quickReplies: ["Buy Property", "Rent Property", "PG/Co-living", "List My Property", "Talk to Agent"]
     };
@@ -372,6 +503,11 @@ export function ChatbotProvider({ children }) {
         unreadCount,
         detectedLang,
         resetChat,
+        conversationState,
+        clearConversationMemory,
+        userPreferences,
+        saveUserPreference,
+        clearUserPreferences,
         captureLead,
         leads,
         knowledgeBase,
