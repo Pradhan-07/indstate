@@ -159,6 +159,6 @@ The project is configured for **Vercel**: `vercel.json` rewrites all routes to `
 
 **Karan Kumar Pradhan** — B.Tech CSE @ VIT-AP University
 - GitHub: [@Pradhan-07](https://github.com/Pradhan-07)
-- Portfolio: [karan-07.vercel.app](https://karan-07.vercel.app/)
+- Portfolio: [pradhan.runs-on.dev](https://pradhan.runs-on.dev/)
 - LinkedIn: [karan-pradhan-510062396](https://www.linkedin.com/in/karan-pradhan-510062396)
 - LeetCode: [pradhan_07](https://leetcode.com/u/pradhan_07/)
